@@ -1,8 +1,8 @@
 """
 Remetria artefact cleaner.
 
-Removes generated runtime, report, table, JSON, build, and Python cache
-artefacts. The collected scan archive and executable output are intentionally
+Removes generated report, table, JSON, build, and Python cache artefacts.
+Collected scans, active runtime scans, and executable output are intentionally
 preserved.
 """
 
@@ -161,16 +161,14 @@ def clear_generated_artefacts() -> ClearArtefactsResult:
     cache_directories = find_python_cache_directories()
     bytecode_files = find_python_bytecode_files()
 
-    runtime_count = count_directory_items(RUNTIME_DIR)
     json_count = count_directory_items(JSON_DIR)
     reports_count = count_directory_items(REPORTS_DIR)
     tables_count = count_directory_items(TABLES_DIR)
-    pyinstaller_count = 1 if BUILD_PYINSTALLER_DIR.exists() else 0
+    pyinstaller_count = count_directory_items(BUILD_PYINSTALLER_DIR)
     bytecode_count = len(bytecode_files)
     cache_count = len(cache_directories)
 
     total_count = (
-        runtime_count +
         json_count +
         reports_count +
         tables_count +
@@ -183,7 +181,6 @@ def clear_generated_artefacts() -> ClearArtefactsResult:
 
     print_step("Reviewing generated artefact targets")
     print_result("Clear plan prepared")
-    print_detail(f"Runtime workspace: {relative_path(RUNTIME_DIR)}")
     print_detail(f"Generated JSON output: {relative_path(JSON_DIR)}")
     print_detail(f"Generated reports: {relative_path(REPORTS_DIR)}")
     print_detail(f"Generated tables: {relative_path(TABLES_DIR)}")
@@ -195,12 +192,12 @@ def clear_generated_artefacts() -> ClearArtefactsResult:
     print_step("Checking preserved locations")
     print_result("Preserved locations confirmed")
     print_detail(f"Collected archive: {relative_path(COLLECTED_DIR)}")
+    print_detail(f"Runtime input workset: {relative_path(RUNTIME_DIR)}")
     print_detail(f"Executable output: {relative_path(DIST_DIR)}")
 
     print()
     print_step("Counting selected artefacts")
     print_result("Artefact count calculated")
-    print_detail(f"Runtime workspace items: {runtime_count}")
     print_detail(f"Generated JSON items: {json_count}")
     print_detail(f"Generated report items: {reports_count}")
     print_detail(f"Generated table items: {tables_count}")
@@ -220,16 +217,14 @@ def clear_generated_artefacts() -> ClearArtefactsResult:
     print()
     print_step("Clearing selected artefacts")
 
-    runtime_removed = clear_directory_contents(RUNTIME_DIR)
     json_removed = clear_directory_contents(JSON_DIR)
     reports_removed = clear_directory_contents(REPORTS_DIR)
     tables_removed = clear_directory_contents(TABLES_DIR)
-    pyinstaller_removed = remove_directory_if_exists(BUILD_PYINSTALLER_DIR)
+    pyinstaller_removed = clear_directory_contents(BUILD_PYINSTALLER_DIR)
     bytecode_removed = remove_paths(bytecode_files)
     cache_removed = remove_paths(cache_directories)
 
     print_result("Selected artefacts cleared")
-    print_detail(f"Runtime workspace items removed: {runtime_removed}")
     print_detail(f"Generated JSON items removed: {json_removed}")
     print_detail(f"Generated report items removed: {reports_removed}")
     print_detail(f"Generated table items removed: {tables_removed}")
