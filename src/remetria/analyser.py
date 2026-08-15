@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from processing.loader import load_runtime_scans
+from remetria.cleaner import clear_generated_artefacts
 from utils.console import (
     print_action,
     print_banner,
@@ -77,14 +78,23 @@ def run_analysis() -> None:
 
 
 # ------------------------------------------------------------
-# ARTEFACT CLEANUP PLACEHOLDER
+# ARTEFACT CLEANUP
 # ------------------------------------------------------------
 
 def clear_artefacts() -> None:
-    """Handle the clear artefacts menu action."""
+    """Run the clear artefacts workflow."""
 
-    print_action("Clear Artefacts")
-    print_info("Artefact cleanup is not implemented yet")
+    result = clear_generated_artefacts()
+
+    if result == "cleared":
+        print_success("Clear Artefacts completed")
+        return
+
+    if result == "cancelled":
+        print_info("Clear Artefacts cancelled")
+        return
+
+    print_info("Clear Artefacts skipped")
 
 
 # ------------------------------------------------------------
@@ -108,7 +118,11 @@ def main() -> None:
             print_menu_title()
 
         elif selection == "2":
-            clear_artefacts()
+            try:
+                clear_artefacts()
+            except RuntimeError as exc:
+                print_error(str(exc))
+
             print_menu_title()
 
         elif selection == "3":
