@@ -6,10 +6,14 @@ Provides the main menu and active runtime dataset intake flow.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
+from processing.builder import build_kb_candidate_rows
 from processing.loader import load_runtime_scans
+from processing.normaliser import normalise_loaded_scans
 from remetria.cleaner import clear_generated_artefacts
+from remetria.exporter import export_analysis_result
 from utils.console import (
     print_action,
     print_banner,
@@ -42,6 +46,46 @@ def print_loaded_scan_details(loaded_scans: list[dict[str, Any]]) -> None:
 
 
 # ------------------------------------------------------------
+# ANALYSIS RESULT
+# ------------------------------------------------------------
+
+def build_analysis_result(
+    loaded_scans: list[dict[str, Any]],
+    normalised_result: dict[str, list[dict[str, Any]]],
+    kb_candidate_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build the current Remetria machine-friendly analysis result."""
+
+    scan_ids = [
+        scan_record["ScanId"]
+        for scan_record in loaded_scans
+    ]
+
+    return {
+        "Tool": "Remetria",
+        "ResultType": "RuntimeCandidateBuild",
+        "GeneratedUtc": datetime.now(timezone.utc).isoformat(),
+        "RuntimeScanCount": len(loaded_scans),
+        "ScanIds": scan_ids,
+        "ScanSummaryRows": normalised_result["ScanSummaryRows"],
+        "CveRows": normalised_result["CveRows"],
+        "KbCandidateRows": kb_candidate_rows,
+    }
+
+
+def print_export_details(export_result: dict[str, Any]) -> None:
+    """Print generated export paths."""
+
+    json_path = export_result["JsonPath"]
+    csv_paths = export_result["CsvPaths"]
+
+    print_detail(f"JSON: {relative_path(json_path)}")
+
+    for table_path in csv_paths.values():
+        print_detail(f"Table: {relative_path(table_path)}")
+
+
+# ------------------------------------------------------------
 # ANALYSIS WORKFLOW
 # ------------------------------------------------------------
 
@@ -69,10 +113,40 @@ def run_analysis() -> None:
 
     print_loaded_scan_details(loaded_scans)
 
+    print_section("Evidence Normalisation")
+
+    print_step("Normalising loaded scan evidence")
+    normalised_result = normalise_loaded_scans(loaded_scans)
+    print_result("Loaded scan evidence normalised")
+    print_detail(f"Scan summary rows: {len(normalised_result['ScanSummaryRows'])}")
+    print_detail(f"CVE rows: {len(normalised_result['CveRows'])}")
+
+    print_section("Candidate Build")
+
+    print_step("Building missing KB candidate rows")
+    kb_candidate_rows = build_kb_candidate_rows(loaded_scans)
+    print_result("Missing KB candidate rows built")
+    print_detail(f"KB candidate rows: {len(kb_candidate_rows)}")
+
+    print_step("Building machine-friendly analysis result")
+    analysis_result = build_analysis_result(
+        loaded_scans=loaded_scans,
+        normalised_result=normalised_result,
+        kb_candidate_rows=kb_candidate_rows,
+    )
+    print_result("Machine-friendly analysis result built")
+
+    print_section("Runtime Export")
+
+    print_step("Writing Remetria output files")
+    export_result = export_analysis_result(analysis_result)
+    print_result("Remetria output files written")
+    print_export_details(export_result)
+
     print_section("Analysis Status")
 
-    print_info("Normalisation is not implemented yet")
-    print_info("Next step: build processing/normaliser.py")
+    print_info("Ranking is not implemented yet")
+    print_info("Next step: build processing/ranker.py")
 
     print_success("Run Analysis completed")
 
