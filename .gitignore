@@ -1,19 +1,88 @@
+# ------------------------------------------------------------
+# PYTHON
+# ------------------------------------------------------------
+
 __pycache__/
-*.pyc
-.venv/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+
+# ------------------------------------------------------------
+# VIRTUAL ENVIRONMENTS / LOCAL ENV FILES
+# ------------------------------------------------------------
+
 venv/
+.venv/
+env/
+.env
+.env.*
+!.env.example
 
-dist/*
-!dist/.gitkeep
 
-build/pyinstaller/*
-!build/pyinstaller/.gitkeep
+# ------------------------------------------------------------
+# COLLECTED SCAN ARCHIVE
+# ------------------------------------------------------------
+
+data/collected/*
+!data/collected/.gitkeep
+!data/collected/pre-update/
+!data/collected/post-update/
+data/collected/pre-update/*
+data/collected/post-update/*
+!data/collected/pre-update/.gitkeep
+!data/collected/post-update/.gitkeep
+
+
+# ------------------------------------------------------------
+# ACTIVE ANALYSIS WORKSET
+# ------------------------------------------------------------
+
+data/runtime/*
+!data/runtime/.gitkeep
+
+
+# ------------------------------------------------------------
+# ANALYSIS OUTPUT
+# ------------------------------------------------------------
 
 results/json/*
 !results/json/.gitkeep
+
 results/reports/*
 !results/reports/.gitkeep
+
 results/tables/*
 !results/tables/.gitkeep
 
+
+# ------------------------------------------------------------
+# PYINSTALLER / BUILD OUTPUT
+# ------------------------------------------------------------
+
+build/pyinstaller/
 *.spec
+!dist/
+!dist/remetria.exe
+
+
+# ------------------------------------------------------------
+# LOGS / TEMPORARY FILES
+# ------------------------------------------------------------
+
+*.log
+*.tmp
+*.temp
+
+
+# ------------------------------------------------------------
+# LOCAL / EDITOR FILES
+# ------------------------------------------------------------
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
