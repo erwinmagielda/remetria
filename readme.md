@@ -15,14 +15,3 @@ The project is part of the dissertation **Context-Aware Vulnerability Prioritisa
 Remetria is designed to assess how missing Windows KB updates are prioritised when different ranking methods are applied to the same scan evidence.
 
 The tool does not scan Windows systems directly. It reads Kolektria JSON outputs, normalises the KB and CVE evidence, builds remediation candidate tables, applies prioritisation logic, and exports analysis reports and supporting tables.
-
-## Relationship with Kolektria
-
-Kolektria and Remetria are separate tools with different responsibilities.
-
-```text
-Kolektria
-Windows host -> scan.json
-
-Remetria
-scan corpus folder -> prioritisation analysis report
