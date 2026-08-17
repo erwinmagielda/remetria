@@ -1,43 +1,14 @@
 # ------------------------------------------------------------
-# PYTHON
+# PYTHON CACHE
 # ------------------------------------------------------------
 
 __pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+*.pyc
+*.pyo
 
 
 # ------------------------------------------------------------
-# VIRTUAL ENVIRONMENTS / LOCAL ENV FILES
-# ------------------------------------------------------------
-
-venv/
-.venv/
-env/
-.env
-.env.*
-!.env.example
-
-
-# ------------------------------------------------------------
-# COLLECTED SCAN ARCHIVE
-# ------------------------------------------------------------
-
-data/collected/*
-!data/collected/.gitkeep
-!data/collected/pre-update/
-!data/collected/post-update/
-data/collected/pre-update/*
-data/collected/post-update/*
-!data/collected/pre-update/.gitkeep
-!data/collected/post-update/.gitkeep
-
-
-# ------------------------------------------------------------
-# ACTIVE ANALYSIS WORKSET
+# ACTIVE ANALYSIS INPUT
 # ------------------------------------------------------------
 
 data/runtime/*
@@ -45,7 +16,7 @@ data/runtime/*
 
 
 # ------------------------------------------------------------
-# ANALYSIS OUTPUT
+# GENERATED ANALYSIS OUTPUT
 # ------------------------------------------------------------
 
 results/json/*
@@ -59,38 +30,16 @@ results/tables/*
 
 
 # ------------------------------------------------------------
-# PYINSTALLER / BUILD OUTPUT
+# PYINSTALLER BUILD WORKSPACE
 # ------------------------------------------------------------
 
 build/pyinstaller/
 *.spec
-!dist/
-!dist/remetria.exe
 
 
 # ------------------------------------------------------------
-# LOGS / TEMPORARY FILES
+# LOCAL WINDOWS FILES
 # ------------------------------------------------------------
 
-*.log
-*.tmp
-*.temp
-
-
-# ------------------------------------------------------------
-# LOCAL / EDITOR FILES
-# ------------------------------------------------------------
-
-.vscode/
-.idea/
-.DS_Store
 Thumbs.db
 desktop.ini
-
-
-# ------------------------------------------------------------
-# ENRICHMENT CACHE
-# ------------------------------------------------------------
-
-data/cache/
-!data/cache/.gitkeep
