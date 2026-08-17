@@ -1,49 +1,22 @@
 """
-Remetria path helpers.
+Shared Remetria project paths.
 
-Centralises project paths used by the analyser, loader, exporter, reporter,
-cleaner and build workflow.
+Defines root-relative paths used by the analysis workflow, exporter, reporter
+and cleaner.
 """
 
 from __future__ import annotations
 
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 
 # ------------------------------------------------------------
-# PROJECT ROOT
+# ROOT PATHS
 # ------------------------------------------------------------
 
-def get_root_dir() -> Path:
-    """
-    Return the Remetria project root directory.
-
-    Source mode:
-        src/remetria/analyser.py
-
-    Executable mode:
-        dist/remetria.exe
-    """
-
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parents[1]
-
-    return Path(__file__).resolve().parents[2]
-
-
-ROOT_DIR = get_root_dir()
-
-
-# ------------------------------------------------------------
-# PROJECT PATHS
-# ------------------------------------------------------------
-
+ROOT_DIR = Path(__file__).resolve().parents[2]
 SRC_DIR = ROOT_DIR / "src"
-REMETRIA_DIR = SRC_DIR / "remetria"
-PROCESSING_DIR = SRC_DIR / "processing"
-UTILS_DIR = SRC_DIR / "utils"
 
 DATA_DIR = ROOT_DIR / "data"
 RUNTIME_DIR = DATA_DIR / "runtime"
@@ -51,13 +24,26 @@ RUNTIME_DIR = DATA_DIR / "runtime"
 RESULTS_DIR = ROOT_DIR / "results"
 
 BUILD_DIR = ROOT_DIR / "build"
-BUILD_PYINSTALLER_DIR = BUILD_DIR / "pyinstaller"
-
 DIST_DIR = ROOT_DIR / "dist"
 
 
 # ------------------------------------------------------------
-# RUN IDENTIFIERS
+# PATH FORMATTING
+# ------------------------------------------------------------
+
+def relative_path(path: Path) -> str:
+    """Return a project-relative Windows-style path."""
+
+    try:
+        relative = path.relative_to(ROOT_DIR)
+    except ValueError:
+        relative = path
+
+    return str(relative).replace("/", "\\")
+
+
+# ------------------------------------------------------------
+# TIMESTAMP HELPERS
 # ------------------------------------------------------------
 
 def get_utc_timestamp() -> datetime:
@@ -67,57 +53,31 @@ def get_utc_timestamp() -> datetime:
 
 
 def build_analysis_run_id(timestamp: datetime) -> str:
-    """Return a timestamped Remetria analysis run identifier."""
+    """Return a timestamped Remetria analysis run ID."""
 
-    return timestamp.strftime("analysis_%Y%m%d_%H%M%S")
-
-
-# ------------------------------------------------------------
-# PATH DISPLAY
-# ------------------------------------------------------------
-
-def relative_path(path: Path) -> str:
-    """Return a project-relative path for clean console output."""
-
-    try:
-        return str(path.relative_to(ROOT_DIR))
-    except ValueError:
-        return str(path)
+    return f"analysis_{timestamp.strftime('%Y%m%d_%H%M%S')}"
 
 
 # ------------------------------------------------------------
-# REQUIRED DIRECTORY VALIDATION
+# DIRECTORY HELPERS
 # ------------------------------------------------------------
-
-def get_required_directories() -> list[Path]:
-    """Return directories required by the analyser workflow."""
-
-    return [
-        SRC_DIR,
-        REMETRIA_DIR,
-        PROCESSING_DIR,
-        UTILS_DIR,
-        DATA_DIR,
-        RUNTIME_DIR,
-        RESULTS_DIR,
-    ]
-
 
 def ensure_required_directories() -> None:
-    """Validate that required project directories exist."""
+    """Ensure required Remetria project directories exist."""
 
-    missing_directories = [
-        relative_path(directory)
-        for directory in get_required_directories()
-        if not directory.exists()
-    ]
-
-    if missing_directories:
-        missing = ", ".join(missing_directories)
-        raise RuntimeError(f"Missing required directory/directories: {missing}")
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    DIST_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def ensure_results_directory() -> None:
-    """Create the results directory if it does not exist."""
+    """
+    Ensure the results root exists.
+
+    Timestamped analysis subfolders are created by remetria.exporter.
+    This function must not create results\\json, results\\tables or
+    results\\reports.
+    """
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)

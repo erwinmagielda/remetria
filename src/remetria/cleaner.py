@@ -79,11 +79,25 @@ def find_analysis_output_folders() -> list[Path]:
     if not RESULTS_DIR.exists():
         return []
 
-    return [
+    generated_folders = [
         path
         for path in RESULTS_DIR.glob("analysis_*")
         if path.is_dir()
     ]
+
+    legacy_output_folders = [
+        RESULTS_DIR / "json",
+        RESULTS_DIR / "tables",
+        RESULTS_DIR / "reports",
+    ]
+
+    generated_folders.extend([
+        path
+        for path in legacy_output_folders
+        if path.exists() and path.is_dir()
+    ])
+
+    return generated_folders
 
 
 def is_inside_any(path: Path, directories: list[Path]) -> bool:
