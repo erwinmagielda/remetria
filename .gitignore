@@ -24,18 +24,6 @@ data/runtime/*
 
 results/*
 !results/.gitkeep
-!results/json/
-!results/reports/
-!results/tables/
-
-results/json/*
-!results/json/.gitkeep
-
-results/reports/*
-!results/reports/.gitkeep
-
-results/tables/*
-!results/tables/.gitkeep
 
 
 # ------------------------------------------------------------

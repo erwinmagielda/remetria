@@ -1,13 +1,14 @@
 """
 Remetria path helpers.
 
-Centralises project paths used by the analyser, loader, reporter, cleaner,
-and export workflow.
+Centralises project paths used by the analyser, loader, exporter, reporter,
+cleaner and build workflow.
 """
 
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -48,14 +49,27 @@ DATA_DIR = ROOT_DIR / "data"
 RUNTIME_DIR = DATA_DIR / "runtime"
 
 RESULTS_DIR = ROOT_DIR / "results"
-JSON_DIR = RESULTS_DIR / "json"
-REPORTS_DIR = RESULTS_DIR / "reports"
-TABLES_DIR = RESULTS_DIR / "tables"
 
 BUILD_DIR = ROOT_DIR / "build"
 BUILD_PYINSTALLER_DIR = BUILD_DIR / "pyinstaller"
 
 DIST_DIR = ROOT_DIR / "dist"
+
+
+# ------------------------------------------------------------
+# RUN IDENTIFIERS
+# ------------------------------------------------------------
+
+def get_utc_timestamp() -> datetime:
+    """Return the current UTC timestamp."""
+
+    return datetime.now(timezone.utc)
+
+
+def build_analysis_run_id(timestamp: datetime) -> str:
+    """Return a timestamped Remetria analysis run identifier."""
+
+    return timestamp.strftime("analysis_%Y%m%d_%H%M%S")
 
 
 # ------------------------------------------------------------
@@ -86,9 +100,6 @@ def get_required_directories() -> list[Path]:
         DATA_DIR,
         RUNTIME_DIR,
         RESULTS_DIR,
-        JSON_DIR,
-        REPORTS_DIR,
-        TABLES_DIR,
     ]
 
 
@@ -106,13 +117,7 @@ def ensure_required_directories() -> None:
         raise RuntimeError(f"Missing required directory/directories: {missing}")
 
 
-# ------------------------------------------------------------
-# OUTPUT DIRECTORIES
-# ------------------------------------------------------------
+def ensure_results_directory() -> None:
+    """Create the results directory if it does not exist."""
 
-def ensure_output_directories() -> None:
-    """Create required output directories if they do not exist."""
-
-    JSON_DIR.mkdir(parents=True, exist_ok=True)
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    TABLES_DIR.mkdir(parents=True, exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)

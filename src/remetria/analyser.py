@@ -6,7 +6,7 @@ Provides the main menu and active runtime dataset analysis flow.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from processing.builder import build_kb_candidate_rows
@@ -16,7 +16,7 @@ from processing.loader import load_runtime_scans
 from processing.normaliser import normalise_loaded_scans
 from processing.ranker import rank_enriched_kb_candidates
 from remetria.cleaner import clear_generated_artefacts
-from remetria.exporter import export_analysis_result
+from remetria.exporter import build_export_context, export_analysis_result
 from remetria.reporter import write_markdown_report
 from utils.console import (
     print_action,
@@ -31,7 +31,13 @@ from utils.console import (
     print_success,
     prompt_main_menu,
 )
-from utils.paths import ensure_output_directories, ensure_required_directories, relative_path
+from utils.paths import (
+    build_analysis_run_id,
+    ensure_required_directories,
+    ensure_results_directory,
+    get_utc_timestamp,
+    relative_path,
+)
 
 
 # ------------------------------------------------------------
@@ -39,6 +45,9 @@ from utils.paths import ensure_output_directories, ensure_required_directories, 
 # ------------------------------------------------------------
 
 def build_analysis_result(
+    run_id: str,
+    generated_utc: datetime,
+    output_root: Any,
     loaded_scans: list[dict[str, Any]],
     normalised_result: dict[str, list[dict[str, Any]]],
     kb_candidate_rows: list[dict[str, Any]],
@@ -56,7 +65,9 @@ def build_analysis_result(
     return {
         "Tool": "Remetria",
         "ResultType": "RuntimeEvaluationBuild",
-        "GeneratedUtc": datetime.now(timezone.utc).isoformat(),
+        "RunId": run_id,
+        "GeneratedUtc": generated_utc.isoformat(),
+        "OutputRoot": relative_path(output_root),
         "RuntimeScanCount": len(loaded_scans),
         "ScanIds": scan_ids,
         "ScanSummaryRows": normalised_result["ScanSummaryRows"],
@@ -72,13 +83,10 @@ def build_analysis_result(
 def print_export_details(export_result: dict[str, Any]) -> None:
     """Print generated export paths."""
 
-    json_path = export_result["JsonPath"]
-    csv_paths = export_result["CsvPaths"]
-
-    print_detail(f"JSON: {relative_path(json_path)}")
-
-    for table_path in csv_paths.values():
-        print_detail(f"Table: {relative_path(table_path)}")
+    print_detail(f"Run folder: {relative_path(export_result['OutputRoot'])}")
+    print_detail(f"JSON: {relative_path(export_result['JsonPath'])}")
+    print_detail(f"Tables: {relative_path(export_result['TablesDir'])}")
+    print_detail(f"Report: {relative_path(export_result['ReportPath'])}")
 
 
 # ------------------------------------------------------------
@@ -90,31 +98,37 @@ def run_analysis() -> None:
 
     print_action("Run Analysis")
 
-    print_section("Environment")
+    print_section("Environment Preparation")
 
     print_step("Preparing environment")
     ensure_required_directories()
-    ensure_output_directories()
+    ensure_results_directory()
     print_result("Environment ready")
 
-    print_section("Runtime Dataset")
+    generated_utc = get_utc_timestamp()
+    run_id = build_analysis_run_id(generated_utc)
+    export_context = build_export_context(run_id)
+
+    print_section("Runtime Input")
 
     print_step("Loading runtime scans")
     loaded_scans = load_runtime_scans()
     print_result(f"Scans loaded: {len(loaded_scans)}")
 
-    print_section("Evidence Processing")
+    print_section("Evidence Normalisation")
 
     print_step("Normalising scan evidence")
     normalised_result = normalise_loaded_scans(loaded_scans)
     print_result(f"Scan summary rows: {len(normalised_result['ScanSummaryRows'])}")
     print_result(f"CVE evidence rows: {len(normalised_result['CveRows'])}")
 
+    print_section("Candidate Analysis")
+
     print_step("Building missing KB candidates")
     kb_candidate_rows = build_kb_candidate_rows(loaded_scans)
     print_result(f"Missing KB candidates: {len(kb_candidate_rows)}")
 
-    print_section("Enrichment")
+    print_section("CVE Enrichment")
 
     print_step("Enriching CVE metadata")
     enrichment_result = enrich_analysis_rows(
@@ -127,7 +141,7 @@ def run_analysis() -> None:
         f"{len(enrichment_result['EnrichedKbCandidateRows'])}"
     )
 
-    print_section("Ranking and Evaluation")
+    print_section("Ranking Evaluation")
 
     print_step("Ranking candidates")
     ranking_comparison_rows = rank_enriched_kb_candidates(
@@ -141,10 +155,13 @@ def run_analysis() -> None:
     )
     print_result(f"Evaluation rows: {len(evaluation_metric_rows)}")
 
-    print_section("Output")
+    print_section("Runtime Export")
 
     print_step("Building analysis result")
     analysis_result = build_analysis_result(
+        run_id=run_id,
+        generated_utc=generated_utc,
+        output_root=export_context["OutputRoot"],
         loaded_scans=loaded_scans,
         normalised_result=normalised_result,
         kb_candidate_rows=kb_candidate_rows,
@@ -154,19 +171,19 @@ def run_analysis() -> None:
     )
     print_result("Analysis result built")
 
-    print_step("Writing JSON and CSV outputs")
-    export_result = export_analysis_result(analysis_result)
-    print_result("JSON and CSV outputs written")
+    print_step("Writing analysis artefacts")
+    export_result = export_analysis_result(
+        analysis_result=analysis_result,
+        export_context=export_context,
+    )
+    write_markdown_report(
+        analysis_result=analysis_result,
+        report_path=export_context["ReportPath"],
+    )
+    print_result("Analysis artefacts written")
     print_export_details(export_result)
 
-    print_step("Writing Markdown report")
-    report_path = write_markdown_report(analysis_result)
-    print_result("Markdown report written")
-    print_detail(f"Report: {relative_path(report_path)}")
-
-    print_section("Analysis Status")
-
-    print_success("Remetria workflow completed")
+    print_success("Run Analysis completed")
 
 
 # ------------------------------------------------------------

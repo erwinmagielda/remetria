@@ -1,8 +1,8 @@
 """
-Remetria export helpers.
+Remetria output exporter.
 
-Writes machine-friendly JSON output and structured CSV tables from the current
-analysis result.
+Writes the current Remetria analysis result into a timestamped analysis folder
+under results/.
 """
 
 from __future__ import annotations
@@ -12,166 +12,151 @@ import json
 from pathlib import Path
 from typing import Any
 
-from utils.paths import JSON_DIR, TABLES_DIR
+from utils.paths import RESULTS_DIR
 
 
 # ------------------------------------------------------------
-# OUTPUT PATHS
+# OUTPUT TABLE MAP
 # ------------------------------------------------------------
 
-ANALYSIS_JSON_PATH = JSON_DIR / "remetria_analysis.json"
-SCAN_SUMMARY_TABLE_PATH = TABLES_DIR / "scan_summary.csv"
-CVE_ROWS_TABLE_PATH = TABLES_DIR / "cve_rows.csv"
-KB_CANDIDATES_TABLE_PATH = TABLES_DIR / "kb_candidates.csv"
-CVE_ENRICHMENT_TABLE_PATH = TABLES_DIR / "cve_enrichment.csv"
-ENRICHED_KB_CANDIDATES_TABLE_PATH = TABLES_DIR / "kb_candidates_enriched.csv"
-RANKING_COMPARISON_TABLE_PATH = TABLES_DIR / "ranking_comparison.csv"
-EVALUATION_METRICS_TABLE_PATH = TABLES_DIR / "evaluation_metrics.csv"
+CSV_TABLES = {
+    "scan_summary.csv": "ScanSummaryRows",
+    "cve_rows.csv": "CveRows",
+    "kb_candidates.csv": "KbCandidateRows",
+    "cve_enrichment.csv": "CveEnrichmentRows",
+    "kb_candidates_enriched.csv": "EnrichedKbCandidateRows",
+    "ranking_comparison.csv": "RankingComparisonRows",
+    "evaluation_metrics.csv": "EvaluationMetricRows",
+}
 
 
 # ------------------------------------------------------------
-# JSON SERIALISATION
+# EXPORT CONTEXT
 # ------------------------------------------------------------
 
-def make_json_safe(value: Any) -> Any:
-    """Return a JSON-safe value."""
+def build_export_context(run_id: str) -> dict[str, Any]:
+    """Build timestamped output paths for one Remetria analysis run."""
 
-    if isinstance(value, Path):
-        return str(value)
+    output_root = RESULTS_DIR / run_id
+    json_dir = output_root / "json"
+    tables_dir = output_root / "tables"
+    reports_dir = output_root / "reports"
 
-    if isinstance(value, dict):
-        return {
-            key: make_json_safe(item)
-            for key, item in value.items()
-        }
+    return {
+        "RunId": run_id,
+        "OutputRoot": output_root,
+        "JsonDir": json_dir,
+        "TablesDir": tables_dir,
+        "ReportsDir": reports_dir,
+        "JsonPath": json_dir / "remetria_analysis.json",
+        "ReportPath": reports_dir / "remetria_report.md",
+        "CsvPaths": {
+            filename: tables_dir / filename
+            for filename in CSV_TABLES
+        },
+    }
 
-    if isinstance(value, list):
-        return [
-            make_json_safe(item)
-            for item in value
-        ]
 
-    return value
+def ensure_export_directories(export_context: dict[str, Any]) -> None:
+    """Create timestamped output directories for one analysis run."""
+
+    export_context["JsonDir"].mkdir(parents=True, exist_ok=True)
+    export_context["TablesDir"].mkdir(parents=True, exist_ok=True)
+    export_context["ReportsDir"].mkdir(parents=True, exist_ok=True)
 
 
 # ------------------------------------------------------------
 # JSON EXPORT
 # ------------------------------------------------------------
 
-def write_json_output(analysis_result: dict[str, Any]) -> Path:
+def serialise_value(value: Any) -> Any:
+    """Return a JSON-safe value."""
+
+    if isinstance(value, Path):
+        return str(value)
+
+    return value
+
+
+def write_json_output(path: Path, analysis_result: dict[str, Any]) -> None:
     """Write the full Remetria analysis result as JSON."""
 
-    JSON_DIR.mkdir(parents=True, exist_ok=True)
-
-    with ANALYSIS_JSON_PATH.open("w", encoding="utf-8") as file:
+    with path.open("w", encoding="utf-8") as file:
         json.dump(
-            make_json_safe(analysis_result),
+            analysis_result,
             file,
             indent=2,
             ensure_ascii=False,
+            default=serialise_value,
         )
-
-    return ANALYSIS_JSON_PATH
 
 
 # ------------------------------------------------------------
 # CSV EXPORT
 # ------------------------------------------------------------
 
-def collect_fieldnames(rows: list[dict[str, Any]]) -> list[str]:
-    """Return stable CSV fieldnames from row dictionaries."""
+def get_fieldnames(rows: list[dict[str, Any]]) -> list[str]:
+    """Return stable CSV fieldnames from row keys."""
 
     fieldnames: list[str] = []
 
     for row in rows:
-        for key in row.keys():
+        for key in row:
             if key not in fieldnames:
                 fieldnames.append(key)
 
     return fieldnames
 
 
-def write_csv_table(path: Path, rows: list[dict[str, Any]]) -> Path:
-    """Write one CSV table from row dictionaries."""
-
-    TABLES_DIR.mkdir(parents=True, exist_ok=True)
-
-    fieldnames = collect_fieldnames(rows)
+def write_csv_output(path: Path, rows: list[dict[str, Any]]) -> None:
+    """Write a Remetria row set as CSV."""
 
     with path.open("w", encoding="utf-8", newline="") as file:
-        if not fieldnames:
-            return path
+        if not rows:
+            file.write("")
+            return
 
-        writer = csv.DictWriter(
-            file,
-            fieldnames=fieldnames,
-            extrasaction="ignore",
-        )
+        fieldnames = get_fieldnames(rows)
 
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
-    return path
 
+def write_csv_outputs(
+    csv_paths: dict[str, Path],
+    analysis_result: dict[str, Any],
+) -> None:
+    """Write all Remetria table outputs."""
 
-def write_csv_outputs(analysis_result: dict[str, Any]) -> dict[str, Path]:
-    """Write Remetria CSV table outputs."""
+    for filename, result_key in CSV_TABLES.items():
+        rows = analysis_result.get(result_key, [])
 
-    scan_summary_path = write_csv_table(
-        path=SCAN_SUMMARY_TABLE_PATH,
-        rows=analysis_result["ScanSummaryRows"],
-    )
+        if not isinstance(rows, list):
+            rows = []
 
-    cve_rows_path = write_csv_table(
-        path=CVE_ROWS_TABLE_PATH,
-        rows=analysis_result["CveRows"],
-    )
-
-    kb_candidates_path = write_csv_table(
-        path=KB_CANDIDATES_TABLE_PATH,
-        rows=analysis_result["KbCandidateRows"],
-    )
-
-    cve_enrichment_path = write_csv_table(
-        path=CVE_ENRICHMENT_TABLE_PATH,
-        rows=analysis_result["CveEnrichmentRows"],
-    )
-
-    enriched_kb_candidates_path = write_csv_table(
-        path=ENRICHED_KB_CANDIDATES_TABLE_PATH,
-        rows=analysis_result["EnrichedKbCandidateRows"],
-    )
-    ranking_comparison_path = write_csv_table(
-        path=RANKING_COMPARISON_TABLE_PATH,
-        rows=analysis_result["RankingComparisonRows"],
-    )
-    evaluation_metrics_path = write_csv_table(
-        path=EVALUATION_METRICS_TABLE_PATH,
-        rows=analysis_result["EvaluationMetricRows"],
-    )
-
-    return {
-        "ScanSummary": scan_summary_path,
-        "CveRows": cve_rows_path,
-        "KbCandidates": kb_candidates_path,
-        "CveEnrichment": cve_enrichment_path,
-        "EnrichedKbCandidates": enriched_kb_candidates_path,
-        "RankingComparison": ranking_comparison_path,
-        "EvaluationMetrics": evaluation_metrics_path,
-    }
+        write_csv_output(csv_paths[filename], rows)
 
 
 # ------------------------------------------------------------
 # EXPORT WORKFLOW
 # ------------------------------------------------------------
 
-def export_analysis_result(analysis_result: dict[str, Any]) -> dict[str, Any]:
+def export_analysis_result(
+    analysis_result: dict[str, Any],
+    export_context: dict[str, Any],
+) -> dict[str, Any]:
     """Export the current Remetria analysis result."""
 
-    json_path = write_json_output(analysis_result)
-    csv_paths = write_csv_outputs(analysis_result)
+    ensure_export_directories(export_context)
 
-    return {
-        "JsonPath": json_path,
-        "CsvPaths": csv_paths,
-    }
+    write_json_output(
+        path=export_context["JsonPath"],
+        analysis_result=analysis_result,
+    )
+    write_csv_outputs(
+        csv_paths=export_context["CsvPaths"],
+        analysis_result=analysis_result,
+    )
+
+    return export_context

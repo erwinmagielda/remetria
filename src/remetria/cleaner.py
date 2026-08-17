@@ -1,8 +1,9 @@
 """
 Remetria artefact cleaner.
 
-Removes generated report, table, JSON, build, and Python cache artefacts.
-Active runtime scans and executable output are intentionally preserved.
+Removes generated analysis folders, build workspace files and Python cache
+artefacts. Active runtime scans and executable output are intentionally
+preserved.
 """
 
 from __future__ import annotations
@@ -21,11 +22,9 @@ from utils.console import (
 from utils.paths import (
     BUILD_PYINSTALLER_DIR,
     DIST_DIR,
-    JSON_DIR,
-    REPORTS_DIR,
+    RESULTS_DIR,
     ROOT_DIR,
     RUNTIME_DIR,
-    TABLES_DIR,
     relative_path,
 )
 
@@ -78,6 +77,19 @@ def clear_directory_contents(path: Path, preserve: set[str] | None = None) -> in
         removed_count += 1
 
     return removed_count
+
+
+def find_analysis_run_directories() -> list[Path]:
+    """Return generated Remetria analysis output folders."""
+
+    if not RESULTS_DIR.exists():
+        return []
+
+    return [
+        path
+        for path in RESULTS_DIR.glob("analysis_*")
+        if path.is_dir()
+    ]
 
 
 def find_python_cache_directories() -> list[Path]:
@@ -146,20 +158,17 @@ def clear_generated_artefacts() -> ClearArtefactsResult:
             No generated artefacts were selected for removal.
     """
 
+    analysis_run_directories = find_analysis_run_directories()
     cache_directories = find_python_cache_directories()
     bytecode_files = find_python_bytecode_files()
 
-    json_count = count_directory_items(JSON_DIR)
-    reports_count = count_directory_items(REPORTS_DIR)
-    tables_count = count_directory_items(TABLES_DIR)
+    analysis_run_count = len(analysis_run_directories)
     pyinstaller_count = count_directory_items(BUILD_PYINSTALLER_DIR)
     bytecode_count = len(bytecode_files)
     cache_count = len(cache_directories)
 
     total_count = (
-        json_count +
-        reports_count +
-        tables_count +
+        analysis_run_count +
         pyinstaller_count +
         bytecode_count +
         cache_count
@@ -168,9 +177,7 @@ def clear_generated_artefacts() -> ClearArtefactsResult:
     print_action("Clear Artefacts")
 
     print_step("Checking generated artefacts")
-    print_detail(f"JSON output items: {json_count}")
-    print_detail(f"Report items: {reports_count}")
-    print_detail(f"Table items: {tables_count}")
+    print_detail(f"Analysis run folders: {analysis_run_count}")
     print_detail(f"PyInstaller workspace items: {pyinstaller_count}")
     print_detail(f"Python bytecode files: {bytecode_count}")
     print_detail(f"Python cache directories: {cache_count}")
@@ -192,17 +199,13 @@ def clear_generated_artefacts() -> ClearArtefactsResult:
     print()
     print_step("Clearing generated artefacts")
 
-    json_removed = clear_directory_contents(JSON_DIR)
-    reports_removed = clear_directory_contents(REPORTS_DIR)
-    tables_removed = clear_directory_contents(TABLES_DIR)
+    analysis_runs_removed = remove_paths(analysis_run_directories)
     pyinstaller_removed = clear_directory_contents(BUILD_PYINSTALLER_DIR)
     bytecode_removed = remove_paths(bytecode_files)
     cache_removed = remove_paths(cache_directories)
 
     removed_total = (
-        json_removed +
-        reports_removed +
-        tables_removed +
+        analysis_runs_removed +
         pyinstaller_removed +
         bytecode_removed +
         cache_removed
