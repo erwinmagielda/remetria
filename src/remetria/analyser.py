@@ -16,7 +16,12 @@ from processing.loader import load_runtime_scans
 from processing.normaliser import normalise_loaded_scans
 from processing.ranker import rank_enriched_kb_candidates
 from remetria.cleaner import clear_generated_artefacts
-from remetria.exporter import build_export_context, export_analysis_result
+from remetria.exporter import (
+    build_export_context,
+    ensure_export_directories,
+    write_csv_outputs,
+    write_json_output,
+)
 from remetria.reporter import write_markdown_report
 from utils.console import (
     print_action,
@@ -32,6 +37,7 @@ from utils.console import (
     prompt_main_menu,
 )
 from utils.paths import (
+    RUNTIME_DIR,
     build_analysis_run_id,
     ensure_required_directories,
     ensure_results_directory,
@@ -41,13 +47,61 @@ from utils.paths import (
 
 
 # ------------------------------------------------------------
+# METRIC HELPERS
+# ------------------------------------------------------------
+
+def count_candidate_bearing_scans(
+    kb_candidate_rows: list[dict[str, Any]],
+) -> int:
+    """Return the number of scans with at least one missing KB candidate."""
+
+    return len({
+        row.get("ScanId")
+        for row in kb_candidate_rows
+        if row.get("ScanId")
+    })
+
+
+def count_missing_enrichment_rows(
+    enrichment_rows: list[dict[str, Any]],
+) -> int:
+    """Return the number of CVE enrichment rows not resolved."""
+
+    return len([
+        row
+        for row in enrichment_rows
+        if row.get("EnrichmentStatus") != "resolved"
+    ])
+
+
+def find_aggregate_evaluation_row(
+    evaluation_metric_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Return the aggregate evaluation row when present."""
+
+    for row in evaluation_metric_rows:
+        if row.get("EvaluationScope") == "aggregate":
+            return row
+
+    return {}
+
+
+def format_ratio(value: Any) -> str:
+    """Return a ratio formatted for console output."""
+
+    try:
+        return f"{float(value):.3f}"
+    except (TypeError, ValueError):
+        return "n/a"
+
+
+# ------------------------------------------------------------
 # ANALYSIS RESULT
 # ------------------------------------------------------------
 
 def build_analysis_result(
-    run_id: str,
     generated_utc: datetime,
-    output_root: Any,
+    export_context: dict[str, Any],
     loaded_scans: list[dict[str, Any]],
     normalised_result: dict[str, list[dict[str, Any]]],
     kb_candidate_rows: list[dict[str, Any]],
@@ -65,9 +119,15 @@ def build_analysis_result(
     return {
         "Tool": "Remetria",
         "ResultType": "RuntimeEvaluationBuild",
-        "RunId": run_id,
+        "RunId": export_context["RunId"],
         "GeneratedUtc": generated_utc.isoformat(),
-        "OutputRoot": relative_path(output_root),
+        "RuntimeInput": relative_path(RUNTIME_DIR),
+        "OutputRoot": relative_path(export_context["OutputRoot"]),
+        "OutputPaths": {
+            "JsonPath": relative_path(export_context["JsonPath"]),
+            "TablesDir": relative_path(export_context["TablesDir"]),
+            "ReportPath": relative_path(export_context["ReportPath"]),
+        },
         "RuntimeScanCount": len(loaded_scans),
         "ScanIds": scan_ids,
         "ScanSummaryRows": normalised_result["ScanSummaryRows"],
@@ -80,15 +140,6 @@ def build_analysis_result(
     }
 
 
-def print_export_details(export_result: dict[str, Any]) -> None:
-    """Print generated export paths."""
-
-    print_detail(f"Run folder: {relative_path(export_result['OutputRoot'])}")
-    print_detail(f"JSON: {relative_path(export_result['JsonPath'])}")
-    print_detail(f"Tables: {relative_path(export_result['TablesDir'])}")
-    print_detail(f"Report: {relative_path(export_result['ReportPath'])}")
-
-
 # ------------------------------------------------------------
 # ANALYSIS WORKFLOW
 # ------------------------------------------------------------
@@ -98,70 +149,87 @@ def run_analysis() -> None:
 
     print_action("Run Analysis")
 
-    print_section("Environment Preparation")
-
-    print_step("Preparing environment")
-    ensure_required_directories()
-    ensure_results_directory()
-    print_result("Environment ready")
-
     generated_utc = get_utc_timestamp()
     run_id = build_analysis_run_id(generated_utc)
     export_context = build_export_context(run_id)
 
-    print_section("Runtime Input")
+    print_section("Environment Preparation")
+    print_step("Validating analyser workspace")
+    ensure_required_directories()
+    ensure_results_directory()
+    print_detail("Source path: src")
+    print_detail(f"Runtime input: {relative_path(RUNTIME_DIR)}")
+    print_detail(f"Output root: {relative_path(export_context['OutputRoot'])}")
+    print_detail(f"Run ID: {run_id}")
+    print_result("Analysis workspace prepared")
 
-    print_step("Loading runtime scans")
+    print_section("Runtime Input")
+    print_step("Loading Kolektria scan evidence")
     loaded_scans = load_runtime_scans()
-    print_result(f"Scans loaded: {len(loaded_scans)}")
+    print_detail(f"Source folder: {relative_path(RUNTIME_DIR)}")
+    print_detail(f"Scan files loaded: {len(loaded_scans)}")
+    print_result("Runtime scans loaded")
 
     print_section("Evidence Normalisation")
-
-    print_step("Normalising scan evidence")
+    print_step("Normalising scan and CVE rows")
     normalised_result = normalise_loaded_scans(loaded_scans)
-    print_result(f"Scan summary rows: {len(normalised_result['ScanSummaryRows'])}")
-    print_result(f"CVE evidence rows: {len(normalised_result['CveRows'])}")
+    print_detail(f"Scan summary rows: {len(normalised_result['ScanSummaryRows'])}")
+    print_detail(f"CVE evidence rows: {len(normalised_result['CveRows'])}")
+    print_result("Evidence rows normalised")
 
     print_section("Candidate Analysis")
-
     print_step("Building missing KB candidates")
     kb_candidate_rows = build_kb_candidate_rows(loaded_scans)
-    print_result(f"Missing KB candidates: {len(kb_candidate_rows)}")
+    candidate_bearing_scan_count = count_candidate_bearing_scans(kb_candidate_rows)
+    print_detail(f"Candidate-bearing scans: {candidate_bearing_scan_count}")
+    print_detail(f"Missing KB candidates: {len(kb_candidate_rows)}")
+    print_result("Candidate set built")
 
     print_section("CVE Enrichment")
-
-    print_step("Enriching CVE metadata")
+    print_step("Resolving CVE metadata")
     enrichment_result = enrich_analysis_rows(
         cve_rows=normalised_result["CveRows"],
         kb_candidate_rows=kb_candidate_rows,
     )
-    print_result(f"Unique CVEs enriched: {len(enrichment_result['CveEnrichmentRows'])}")
-    print_result(
-        "Enriched KB candidates: "
-        f"{len(enrichment_result['EnrichedKbCandidateRows'])}"
+    missing_enrichment_rows = count_missing_enrichment_rows(
+        enrichment_result["CveEnrichmentRows"]
     )
+    print_detail(f"Unique CVEs enriched: {len(enrichment_result['CveEnrichmentRows'])}")
+    print_detail(f"Missing enrichment rows: {missing_enrichment_rows}")
+    print_result("CVE metadata resolved")
 
-    print_section("Ranking Evaluation")
-
-    print_step("Ranking candidates")
+    print_section("Ranking Comparison")
+    print_step("Comparing CVSS, MSRC and CPRI rankings")
     ranking_comparison_rows = rank_enriched_kb_candidates(
         enrichment_result["EnrichedKbCandidateRows"]
     )
-    print_result(f"Ranking rows: {len(ranking_comparison_rows)}")
+    print_detail(f"Ranking rows: {len(ranking_comparison_rows)}")
+    print_detail(f"Candidate-bearing scans: {candidate_bearing_scan_count}")
+    print_result("Ranking comparison completed")
 
-    print_step("Evaluating rankings")
+    print_section("Evaluation Metrics")
+    print_step("Calculating ranking metrics")
     evaluation_metric_rows = evaluate_ranking_comparison(
         ranking_comparison_rows
     )
-    print_result(f"Evaluation rows: {len(evaluation_metric_rows)}")
+    aggregate_row = find_aggregate_evaluation_row(evaluation_metric_rows)
+    print_detail(f"Evaluation rows: {len(evaluation_metric_rows)}")
+    print_detail(
+        "CPRI/CVSS top-1 match ratio: "
+        f"{format_ratio(aggregate_row.get('CVSSTop1MatchRatio'))}"
+    )
+    print_detail(
+        "CPRI/MSRC top-1 match ratio: "
+        f"{format_ratio(aggregate_row.get('MSRCTop1MatchRatio'))}"
+    )
+    print_result("Evaluation metrics calculated")
 
     print_section("Runtime Export")
+    ensure_export_directories(export_context)
 
-    print_step("Building analysis result")
     analysis_result = build_analysis_result(
-        run_id=run_id,
         generated_utc=generated_utc,
-        output_root=export_context["OutputRoot"],
+        export_context=export_context,
         loaded_scans=loaded_scans,
         normalised_result=normalised_result,
         kb_candidate_rows=kb_candidate_rows,
@@ -169,19 +237,34 @@ def run_analysis() -> None:
         ranking_comparison_rows=ranking_comparison_rows,
         evaluation_metric_rows=evaluation_metric_rows,
     )
-    print_result("Analysis result built")
 
-    print_step("Writing analysis artefacts")
-    export_result = export_analysis_result(
+    print_step("Writing analysis JSON")
+    write_json_output(
+        path=export_context["JsonPath"],
         analysis_result=analysis_result,
-        export_context=export_context,
     )
+    print_detail(f"JSON: {relative_path(export_context['JsonPath'])}")
+    print_result("Analysis JSON written")
+
+    print()
+
+    print_step("Writing CSV tables")
+    write_csv_outputs(
+        csv_paths=export_context["CsvPaths"],
+        analysis_result=analysis_result,
+    )
+    print_detail(f"Tables: {relative_path(export_context['TablesDir'])}")
+    print_result("CSV tables written")
+
+    print()
+
+    print_step("Writing Markdown report")
     write_markdown_report(
         analysis_result=analysis_result,
         report_path=export_context["ReportPath"],
     )
-    print_result("Analysis artefacts written")
-    print_export_details(export_result)
+    print_detail(f"Markdown report: {relative_path(export_context['ReportPath'])}")
+    print_result("Markdown report written")
 
     print_success("Run Analysis completed")
 

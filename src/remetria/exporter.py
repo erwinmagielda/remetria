@@ -136,27 +136,3 @@ def write_csv_outputs(
             rows = []
 
         write_csv_output(csv_paths[filename], rows)
-
-
-# ------------------------------------------------------------
-# EXPORT WORKFLOW
-# ------------------------------------------------------------
-
-def export_analysis_result(
-    analysis_result: dict[str, Any],
-    export_context: dict[str, Any],
-) -> dict[str, Any]:
-    """Export the current Remetria analysis result."""
-
-    ensure_export_directories(export_context)
-
-    write_json_output(
-        path=export_context["JsonPath"],
-        analysis_result=analysis_result,
-    )
-    write_csv_outputs(
-        csv_paths=export_context["CsvPaths"],
-        analysis_result=analysis_result,
-    )
-
-    return export_context
