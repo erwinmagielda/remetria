@@ -266,6 +266,7 @@ def run_analysis() -> None:
     print_detail(f"Markdown report: {relative_path(export_context['ReportPath'])}")
     print_result("Markdown report written")
 
+    print()
     print_success("Run Analysis completed")
 
 
