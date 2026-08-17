@@ -2,8 +2,7 @@
 Remetria artefact cleaner.
 
 Removes generated report, table, JSON, build, and Python cache artefacts.
-Collected scans, active runtime scans, and executable output are intentionally
-preserved.
+Active runtime scans and executable output are intentionally preserved.
 """
 
 from __future__ import annotations
@@ -21,7 +20,6 @@ from utils.console import (
 )
 from utils.paths import (
     BUILD_PYINSTALLER_DIR,
-    COLLECTED_DIR,
     DIST_DIR,
     JSON_DIR,
     REPORTS_DIR,
@@ -82,16 +80,6 @@ def clear_directory_contents(path: Path, preserve: set[str] | None = None) -> in
     return removed_count
 
 
-def remove_directory_if_exists(path: Path) -> int:
-    """Remove a directory if it exists."""
-
-    if not path.exists():
-        return 0
-
-    shutil.rmtree(path)
-    return 1
-
-
 def find_python_cache_directories() -> list[Path]:
     """Return Python cache directories under the project root."""
 
@@ -134,7 +122,7 @@ def confirm_clear_artefacts() -> bool:
     """Ask the user to confirm generated artefact removal."""
 
     print()
-    response = input("Clear selected artefacts? [y/N]: ").strip().lower()
+    response = input("Clear generated artefacts? [y/N]: ").strip().lower()
 
     return response in {"y", "yes"}
 
@@ -179,32 +167,19 @@ def clear_generated_artefacts() -> ClearArtefactsResult:
 
     print_action("Clear Artefacts")
 
-    print_step("Reviewing generated artefact targets")
-    print_result("Clear plan prepared")
-    print_detail(f"Generated JSON output: {relative_path(JSON_DIR)}")
-    print_detail(f"Generated reports: {relative_path(REPORTS_DIR)}")
-    print_detail(f"Generated tables: {relative_path(TABLES_DIR)}")
-    print_detail(f"PyInstaller workspace: {relative_path(BUILD_PYINSTALLER_DIR)}")
-    print_detail("Python cache directories: __pycache__")
-    print_detail("Python bytecode files: *.pyc, *.pyo")
-
-    print()
-    print_step("Checking preserved locations")
-    print_result("Preserved locations confirmed")
-    print_detail(f"Collected archive: {relative_path(COLLECTED_DIR)}")
-    print_detail(f"Runtime input workset: {relative_path(RUNTIME_DIR)}")
-    print_detail(f"Executable output: {relative_path(DIST_DIR)}")
-
-    print()
-    print_step("Counting selected artefacts")
-    print_result("Artefact count calculated")
-    print_detail(f"Generated JSON items: {json_count}")
-    print_detail(f"Generated report items: {reports_count}")
-    print_detail(f"Generated table items: {tables_count}")
+    print_step("Checking generated artefacts")
+    print_detail(f"JSON output items: {json_count}")
+    print_detail(f"Report items: {reports_count}")
+    print_detail(f"Table items: {tables_count}")
     print_detail(f"PyInstaller workspace items: {pyinstaller_count}")
     print_detail(f"Python bytecode files: {bytecode_count}")
     print_detail(f"Python cache directories: {cache_count}")
-    print_detail(f"Total artefacts selected: {total_count}")
+    print_result(f"Total selected: {total_count}")
+
+    print()
+    print_step("Preserved locations")
+    print_detail(f"Runtime input: {relative_path(RUNTIME_DIR)}")
+    print_detail(f"Executable output: {relative_path(DIST_DIR)}")
 
     if total_count == 0:
         print()
@@ -215,7 +190,7 @@ def clear_generated_artefacts() -> ClearArtefactsResult:
         return "cancelled"
 
     print()
-    print_step("Clearing selected artefacts")
+    print_step("Clearing generated artefacts")
 
     json_removed = clear_directory_contents(JSON_DIR)
     reports_removed = clear_directory_contents(REPORTS_DIR)
@@ -224,12 +199,15 @@ def clear_generated_artefacts() -> ClearArtefactsResult:
     bytecode_removed = remove_paths(bytecode_files)
     cache_removed = remove_paths(cache_directories)
 
-    print_result("Selected artefacts cleared")
-    print_detail(f"Generated JSON items removed: {json_removed}")
-    print_detail(f"Generated report items removed: {reports_removed}")
-    print_detail(f"Generated table items removed: {tables_removed}")
-    print_detail(f"PyInstaller workspace items removed: {pyinstaller_removed}")
-    print_detail(f"Python bytecode files removed: {bytecode_removed}")
-    print_detail(f"Python cache directories removed: {cache_removed}")
+    removed_total = (
+        json_removed +
+        reports_removed +
+        tables_removed +
+        pyinstaller_removed +
+        bytecode_removed +
+        cache_removed
+    )
+
+    print_result(f"Artefacts removed: {removed_total}")
 
     return "cleared"

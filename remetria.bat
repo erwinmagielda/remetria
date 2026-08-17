@@ -12,12 +12,9 @@ REM
 REM Input:
 REM     data\runtime         - active analysis workset
 REM
-REM Archive:
-REM     data\collected       - persistent scan archive
-REM
 REM Output:
 REM     results\json         - generated JSON analysis output
-REM     results\reports      - generated Markdown reports
+REM     results\reports      - generated Markdown report
 REM     results\tables       - generated CSV tables
 REM ------------------------------------------------------------
 
@@ -28,9 +25,6 @@ set "PY_MODULE=remetria.analyser"
 set "PYTHONPATH=%CD%\src"
 set "SOURCE_FILE=src\remetria\analyser.py"
 
-set "COLLECTED_DIR=data\collected"
-set "PRE_UPDATE_DIR=data\collected\pre-update"
-set "POST_UPDATE_DIR=data\collected\post-update"
 set "RUNTIME_DIR=data\runtime"
 
 set "JSON_DIR=results\json"
@@ -44,6 +38,7 @@ REM ------------------------------------------------------------
 goto main
 
 :wait_to_close
+echo.
 echo Press any key to close
 pause >nul
 exit /b 0
@@ -69,18 +64,6 @@ if /i not "%OS%"=="Windows_NT" (
 REM ------------------------------------------------------------
 REM REQUIRED DIRECTORY PREPARATION
 REM ------------------------------------------------------------
-
-if not exist "%COLLECTED_DIR%" (
-    mkdir "%COLLECTED_DIR%" >nul 2>&1
-)
-
-if not exist "%PRE_UPDATE_DIR%" (
-    mkdir "%PRE_UPDATE_DIR%" >nul 2>&1
-)
-
-if not exist "%POST_UPDATE_DIR%" (
-    mkdir "%POST_UPDATE_DIR%" >nul 2>&1
-)
 
 if not exist "%RUNTIME_DIR%" (
     mkdir "%RUNTIME_DIR%" >nul 2>&1

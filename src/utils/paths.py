@@ -2,7 +2,7 @@
 Remetria path helpers.
 
 Centralises project paths used by the analyser, loader, reporter, cleaner,
-and analysis export workflow.
+and export workflow.
 """
 
 from __future__ import annotations
@@ -45,9 +45,6 @@ PROCESSING_DIR = SRC_DIR / "processing"
 UTILS_DIR = SRC_DIR / "utils"
 
 DATA_DIR = ROOT_DIR / "data"
-COLLECTED_DIR = DATA_DIR / "collected"
-PRE_UPDATE_DIR = COLLECTED_DIR / "pre-update"
-POST_UPDATE_DIR = COLLECTED_DIR / "post-update"
 RUNTIME_DIR = DATA_DIR / "runtime"
 
 RESULTS_DIR = ROOT_DIR / "results"
@@ -87,9 +84,6 @@ def get_required_directories() -> list[Path]:
         PROCESSING_DIR,
         UTILS_DIR,
         DATA_DIR,
-        COLLECTED_DIR,
-        PRE_UPDATE_DIR,
-        POST_UPDATE_DIR,
         RUNTIME_DIR,
         RESULTS_DIR,
         JSON_DIR,
