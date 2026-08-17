@@ -23,6 +23,9 @@ ANALYSIS_JSON_PATH = JSON_DIR / "remetria_analysis.json"
 SCAN_SUMMARY_TABLE_PATH = TABLES_DIR / "scan_summary.csv"
 CVE_ROWS_TABLE_PATH = TABLES_DIR / "cve_rows.csv"
 KB_CANDIDATES_TABLE_PATH = TABLES_DIR / "kb_candidates.csv"
+CVE_ENRICHMENT_TABLE_PATH = TABLES_DIR / "cve_enrichment.csv"
+ENRICHED_KB_CANDIDATES_TABLE_PATH = TABLES_DIR / "kb_candidates_enriched.csv"
+RANKING_COMPARISON_TABLE_PATH = TABLES_DIR / "ranking_comparison.csv"
 
 
 # ------------------------------------------------------------
@@ -128,10 +131,27 @@ def write_csv_outputs(analysis_result: dict[str, Any]) -> dict[str, Path]:
         rows=analysis_result["KbCandidateRows"],
     )
 
+    cve_enrichment_path = write_csv_table(
+        path=CVE_ENRICHMENT_TABLE_PATH,
+        rows=analysis_result["CveEnrichmentRows"],
+    )
+
+    enriched_kb_candidates_path = write_csv_table(
+        path=ENRICHED_KB_CANDIDATES_TABLE_PATH,
+        rows=analysis_result["EnrichedKbCandidateRows"],
+    )
+    ranking_comparison_path = write_csv_table(
+        path=RANKING_COMPARISON_TABLE_PATH,
+        rows=analysis_result["RankingComparisonRows"],
+    )
+
     return {
         "ScanSummary": scan_summary_path,
         "CveRows": cve_rows_path,
         "KbCandidates": kb_candidates_path,
+        "CveEnrichment": cve_enrichment_path,
+        "EnrichedKbCandidates": enriched_kb_candidates_path,
+        "RankingComparison": ranking_comparison_path,
     }
 
 

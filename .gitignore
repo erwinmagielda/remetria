@@ -86,3 +86,11 @@ build/pyinstaller/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+
+# ------------------------------------------------------------
+# ENRICHMENT CACHE
+# ------------------------------------------------------------
+
+data/cache/
+!data/cache/.gitkeep

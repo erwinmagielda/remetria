@@ -10,8 +10,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 from processing.builder import build_kb_candidate_rows
+from processing.enricher import enrich_analysis_rows
 from processing.loader import load_runtime_scans
 from processing.normaliser import normalise_loaded_scans
+from processing.ranker import rank_enriched_kb_candidates
 from remetria.cleaner import clear_generated_artefacts
 from remetria.exporter import export_analysis_result
 from utils.console import (
@@ -53,6 +55,8 @@ def build_analysis_result(
     loaded_scans: list[dict[str, Any]],
     normalised_result: dict[str, list[dict[str, Any]]],
     kb_candidate_rows: list[dict[str, Any]],
+    enrichment_result: dict[str, list[dict[str, Any]]],
+    ranking_comparison_rows: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Build the current Remetria machine-friendly analysis result."""
 
@@ -63,15 +67,17 @@ def build_analysis_result(
 
     return {
         "Tool": "Remetria",
-        "ResultType": "RuntimeCandidateBuild",
+        "ResultType": "RuntimeRankingBuild",
         "GeneratedUtc": datetime.now(timezone.utc).isoformat(),
         "RuntimeScanCount": len(loaded_scans),
         "ScanIds": scan_ids,
         "ScanSummaryRows": normalised_result["ScanSummaryRows"],
         "CveRows": normalised_result["CveRows"],
         "KbCandidateRows": kb_candidate_rows,
+        "CveEnrichmentRows": enrichment_result["CveEnrichmentRows"],
+        "EnrichedKbCandidateRows": enrichment_result["EnrichedKbCandidateRows"],
+        "RankingComparisonRows": ranking_comparison_rows,
     }
-
 
 def print_export_details(export_result: dict[str, Any]) -> None:
     """Print generated export paths."""
@@ -128,11 +134,38 @@ def run_analysis() -> None:
     print_result("Missing KB candidate rows built")
     print_detail(f"KB candidate rows: {len(kb_candidate_rows)}")
 
+    print_section("Evidence Enrichment")
+
+    print_step("Enriching CVE metadata from MSRC CVRF evidence")
+    enrichment_result = enrich_analysis_rows(
+        cve_rows=normalised_result["CveRows"],
+        kb_candidate_rows=kb_candidate_rows,
+    )
+    print_result("CVE metadata enrichment completed")
+    print_detail(f"CVE enrichment rows: {len(enrichment_result['CveEnrichmentRows'])}")
+    print_detail(
+        "Enriched KB candidate rows: "
+        f"{len(enrichment_result['EnrichedKbCandidateRows'])}"
+    )
+
+    print_section("Ranking Comparison")
+
+    print_step("Ranking enriched KB candidates")
+    ranking_comparison_rows = rank_enriched_kb_candidates(
+        enrichment_result["EnrichedKbCandidateRows"]
+    )
+    print_result("Ranking comparison completed")
+    print_detail(f"Ranking comparison rows: {len(ranking_comparison_rows)}")
+
+    print_section("Analysis Result")
+
     print_step("Building machine-friendly analysis result")
     analysis_result = build_analysis_result(
         loaded_scans=loaded_scans,
         normalised_result=normalised_result,
         kb_candidate_rows=kb_candidate_rows,
+        enrichment_result=enrichment_result,
+        ranking_comparison_rows=ranking_comparison_rows,
     )
     print_result("Machine-friendly analysis result built")
 
@@ -145,8 +178,8 @@ def run_analysis() -> None:
 
     print_section("Analysis Status")
 
-    print_info("Ranking is not implemented yet")
-    print_info("Next step: build processing/ranker.py")
+    print_info("Ranking comparison completed")
+    print_info("Next step: build processing/evaluator.py")
 
     print_success("Run Analysis completed")
 
