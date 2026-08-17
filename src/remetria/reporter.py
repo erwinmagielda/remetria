@@ -1,25 +1,15 @@
 """
 Remetria Markdown reporter.
 
-Writes a focused analysis report from the current in-memory Remetria result.
-The report presents Remetria's added analytical output: candidate generation,
-CVE enrichment, CVSS/MSRC/CPRI ranking, evaluation metrics, interpretation,
-and limitations.
+Writes a structured analysis report from the current in-memory Remetria result.
+The report follows the same practical style as Kolektria: each section explains
+its purpose before presenting evidence.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-
-from utils.paths import REPORTS_DIR
-
-
-# ------------------------------------------------------------
-# OUTPUT PATH
-# ------------------------------------------------------------
-
-REPORT_PATH = REPORTS_DIR / "remetria_report.md"
 
 
 # ------------------------------------------------------------
@@ -33,6 +23,12 @@ def text(value: Any) -> str:
         return ""
 
     return str(value)
+
+
+def is_empty(value: Any) -> bool:
+    """Return True when a value is empty."""
+
+    return text(value).strip() == ""
 
 
 def as_float(value: Any) -> float:
@@ -62,10 +58,12 @@ def bool_label(value: Any) -> str:
     if value is False:
         return "No"
 
-    if text(value).lower() == "true":
+    lowered_value = text(value).strip().lower()
+
+    if lowered_value == "true":
         return "Yes"
 
-    if text(value).lower() == "false":
+    if lowered_value == "false":
         return "No"
 
     return text(value)
@@ -73,6 +71,9 @@ def bool_label(value: Any) -> str:
 
 def format_number(value: Any) -> str:
     """Return a compact display number."""
+
+    if is_empty(value):
+        return ""
 
     number = as_float(value)
 
@@ -82,11 +83,35 @@ def format_number(value: Any) -> str:
     return f"{number:.3f}"
 
 
-def format_score(value: Any) -> str:
-    """Return a score rounded to three decimal places."""
+def format_decimal(value: Any, places: int = 3) -> str:
+    """Return a decimal number with a fixed number of places."""
 
-    return f"{as_float(value):.3f}"
+    if is_empty(value):
+        return ""
 
+    return f"{as_float(value):.{places}f}"
+
+
+def source_name(source_path: Any) -> str:
+    """Return a source filename from a project path."""
+
+    value = text(source_path).replace("\\", "/")
+
+    if not value:
+        return ""
+
+    return value.rsplit("/", maxsplit=1)[-1]
+
+
+def escape_table_value(value: Any) -> str:
+    """Escape a value for use inside a Markdown table."""
+
+    return text(value).replace("\n", " ").replace("|", "\\|")
+
+
+# ------------------------------------------------------------
+# ROW HELPERS
+# ------------------------------------------------------------
 
 def get_rows(analysis_result: dict[str, Any], key: str) -> list[dict[str, Any]]:
     """Return a row list from the analysis result."""
@@ -101,6 +126,36 @@ def get_rows(analysis_result: dict[str, Any], key: str) -> list[dict[str, Any]]:
         for row in rows
         if isinstance(row, dict)
     ]
+
+
+def scan_sort_key(value: Any) -> tuple[int, int | str]:
+    """Return a stable sort key for numeric and non-numeric scan IDs."""
+
+    scan_id = text(value)
+
+    try:
+        return (0, int(scan_id))
+    except ValueError:
+        return (1, scan_id)
+
+
+def group_rows_by_scan_id(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """Group rows by ScanId."""
+
+    grouped_rows: dict[str, list[dict[str, Any]]] = {}
+
+    for row in rows:
+        scan_id = text(row.get("ScanId"))
+
+        if not scan_id:
+            continue
+
+        if scan_id not in grouped_rows:
+            grouped_rows[scan_id] = []
+
+        grouped_rows[scan_id].append(row)
+
+    return grouped_rows
 
 
 def count_rows(rows: list[dict[str, Any]], field: str, value: Any) -> int:
@@ -133,51 +188,32 @@ def find_aggregate_row(evaluation_rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {}
 
 
-def find_scan_evaluation_rows(evaluation_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def find_scan_evaluation_rows(
+    evaluation_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Return scan-level evaluation rows."""
 
-    return [
-        row
-        for row in evaluation_rows
-        if row.get("EvaluationScope") == "scan"
-    ]
-
-
-def group_rows_by_scan_id(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
-    """Group rows by ScanId."""
-
-    grouped_rows: dict[str, list[dict[str, Any]]] = {}
-
-    for row in rows:
-        scan_id = text(row.get("ScanId"))
-
-        if scan_id not in grouped_rows:
-            grouped_rows[scan_id] = []
-
-        grouped_rows[scan_id].append(row)
-
-    return grouped_rows
+    return sorted(
+        [
+            row
+            for row in evaluation_rows
+            if row.get("EvaluationScope") == "scan"
+        ],
+        key=lambda row: scan_sort_key(row.get("ScanId")),
+    )
 
 
 def get_cpri_top_rows(ranking_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Return CPRI top-ranked candidate rows."""
 
-    return [
-        row
-        for row in ranking_rows
-        if as_int(row.get("CPRIRank")) == 1
-    ]
-
-
-def get_candidate_count_by_scan(candidate_rows: list[dict[str, Any]]) -> dict[str, int]:
-    """Return candidate counts grouped by ScanId."""
-
-    grouped_rows = group_rows_by_scan_id(candidate_rows)
-
-    return {
-        scan_id: len(rows)
-        for scan_id, rows in grouped_rows.items()
-    }
+    return sorted(
+        [
+            row
+            for row in ranking_rows
+            if as_int(row.get("CPRIRank")) == 1
+        ],
+        key=lambda row: scan_sort_key(row.get("ScanId")),
+    )
 
 
 def get_top_cpri_kb_by_scan(ranking_rows: list[dict[str, Any]]) -> dict[str, str]:
@@ -211,10 +247,45 @@ def get_largest_movement_rows(
                 abs(as_int(row.get("CPRIvsCVSSRankDelta"))),
                 abs(as_int(row.get("CPRIvsMSRCRankDelta"))),
             ),
-            as_int(row.get("ScanId")),
+            scan_sort_key(row.get("ScanId")),
             text(row.get("KB")),
         ),
     )[:limit]
+
+
+def get_scan_role(scan_row: dict[str, Any]) -> str:
+    """Return a concise role label for a scan."""
+
+    missing_count = as_int(scan_row.get("MissingKbCount"))
+    patch_age = as_int(scan_row.get("PatchAgeDays"))
+
+    if missing_count == 0:
+        return "No-candidate control"
+
+    if patch_age >= 180:
+        return "Aged patch state"
+
+    if patch_age >= 30:
+        return "Older patch state"
+
+    return "Recent patch state"
+
+
+def get_candidate_note(scan_row: dict[str, Any], candidate_count: int) -> str:
+    """Return a short candidate interpretation note."""
+
+    if candidate_count == 0:
+        return "No missing KB candidates were available for ranking."
+
+    patch_age = as_int(scan_row.get("PatchAgeDays"))
+
+    if patch_age >= 180:
+        return "Large aged candidate set with extended remediation backlog."
+
+    if patch_age >= 30:
+        return "Older host state with multiple remediation candidates."
+
+    return "Recent host state with limited missing update scope."
 
 
 # ------------------------------------------------------------
@@ -233,23 +304,48 @@ def markdown_table(headers: list[str], rows: list[list[Any]]) -> str:
     output.append("| " + " | ".join("---" for _ in headers) + " |")
 
     for row in rows:
-        output.append("| " + " | ".join(text(value) for value in row) + " |")
+        output.append(
+            "| " +
+            " | ".join(escape_table_value(value) for value in row) +
+            " |"
+        )
 
     return "\n".join(output)
 
 
-def write_section(lines: list[str], title: str) -> None:
-    """Append a report section heading."""
+def add_heading(lines: list[str], title: str) -> None:
+    """Append a second-level report heading."""
 
     lines.append("")
     lines.append(f"## {title}")
     lines.append("")
 
 
-def append_paragraph(lines: list[str], value: str) -> None:
-    """Append a paragraph with spacing."""
+def add_paragraph(lines: list[str], value: str) -> None:
+    """Append a paragraph."""
 
     lines.append(value)
+    lines.append("")
+
+
+def add_table(lines: list[str], headers: list[str], rows: list[list[Any]]) -> None:
+    """Append a Markdown table with spacing."""
+
+    table = markdown_table(headers, rows)
+
+    if not table:
+        return
+
+    lines.append(table)
+    lines.append("")
+
+
+def add_bullets(lines: list[str], values: list[str]) -> None:
+    """Append a bullet list."""
+
+    for value in values:
+        lines.append(f"- {value}")
+
     lines.append("")
 
 
@@ -257,147 +353,222 @@ def append_paragraph(lines: list[str], value: str) -> None:
 # REPORT SECTIONS
 # ------------------------------------------------------------
 
-def append_analysis_outcome(
+def append_report_metadata(
     lines: list[str],
     analysis_result: dict[str, Any],
+) -> None:
+    """Append report metadata."""
+
+    add_heading(lines, "Report Metadata")
+
+    add_paragraph(
+        lines,
+        "This section identifies the Remetria analysis run and the output folder "
+        "that contains the generated evidence package.",
+    )
+
+    add_table(
+        lines=lines,
+        headers=["Field", "Value", "Purpose"],
+        rows=[
+            [
+                "Run ID",
+                analysis_result.get("RunId", ""),
+                "Timestamped identifier for this analysis output.",
+            ],
+            [
+                "Generated UTC",
+                analysis_result.get("GeneratedUtc", ""),
+                "UTC timestamp used for report traceability.",
+            ],
+            [
+                "Output root",
+                analysis_result.get("OutputRoot", ""),
+                "Folder containing the JSON, CSV and Markdown artefacts.",
+            ],
+            [
+                "Result type",
+                analysis_result.get("ResultType", ""),
+                "Internal result label for this Remetria workflow.",
+            ],
+        ],
+    )
+
+
+def append_analysis_outcome(
+    lines: list[str],
     scan_rows: list[dict[str, Any]],
     candidate_rows: list[dict[str, Any]],
     enrichment_rows: list[dict[str, Any]],
     ranking_rows: list[dict[str, Any]],
     evaluation_rows: list[dict[str, Any]],
 ) -> None:
-    """Append the opening analysis outcome section."""
+    """Append the analysis outcome section."""
 
-    write_section(lines, "Analysis Outcome")
+    add_heading(lines, "Analysis Outcome")
 
     aggregate_row = find_aggregate_row(evaluation_rows)
-
-    append_paragraph(
-        lines,
-        "Remetria analysed Kolektria runtime evidence and produced a "
-        "context-aware Windows patch remediation ranking. The run generated "
-        "candidate, enrichment, ranking, evaluation and report outputs from the "
-        "same in-memory analysis result.",
+    candidate_bearing_scan_count = aggregate_row.get(
+        "CandidateBearingScanCount",
+        len(group_rows_by_scan_id(candidate_rows)),
     )
 
-    lines.append(markdown_table(
-        headers=["Metric", "Value"],
+    add_paragraph(
+        lines,
+        "Remetria analysed the selected Kolektria runtime scans and produced "
+        "Windows KB remediation ranking evidence. The workflow converted missing "
+        "KBs into candidates, enriched observed CVEs, compared baseline rankings "
+        "against CPRI, and exported evaluation metrics.",
+    )
+
+    add_table(
+        lines=lines,
+        headers=["Metric", "Value", "Meaning"],
         rows=[
-            ["Result type", analysis_result.get("ResultType", "")],
-            ["Generated UTC", analysis_result.get("GeneratedUtc", "")],
-            ["Runtime scans", len(scan_rows)],
-            ["Missing KB candidates", len(candidate_rows)],
-            ["Unique CVEs enriched", len(enrichment_rows)],
-            ["Ranking rows", len(ranking_rows)],
-            ["Evaluation rows", len(evaluation_rows)],
+            [
+                "Runtime scans",
+                len(scan_rows),
+                "Kolektria JSON scans loaded from the active runtime input.",
+            ],
             [
                 "Candidate-bearing scans",
-                aggregate_row.get("CandidateBearingScanCount", 0),
+                candidate_bearing_scan_count,
+                "Scans with at least one missing KB available for ranking.",
+            ],
+            [
+                "Missing KB candidates",
+                len(candidate_rows),
+                "KB update candidates produced from missing update evidence.",
+            ],
+            [
+                "Unique CVEs enriched",
+                len(enrichment_rows),
+                "Distinct CVEs resolved into MSRC/CVSS metadata rows.",
+            ],
+            [
+                "Ranking rows",
+                len(ranking_rows),
+                "Candidate rows compared across CVSS, MSRC and CPRI methods.",
+            ],
+            [
+                "Evaluation rows",
+                len(evaluation_rows),
+                "Scan-level and aggregate ranking comparison metrics.",
             ],
         ],
-    ))
-
-
-def append_runtime_dataset(
-    lines: list[str],
-    scan_rows: list[dict[str, Any]],
-    candidate_rows: list[dict[str, Any]],
-    ranking_rows: list[dict[str, Any]],
-) -> None:
-    """Append a concise runtime dataset section."""
-
-    write_section(lines, "Runtime Dataset")
-
-    if not scan_rows:
-        lines.append("No scan summary rows were produced.")
-        return
-
-    candidate_counts = get_candidate_count_by_scan(candidate_rows)
-    top_cpri_by_scan = get_top_cpri_kb_by_scan(ranking_rows)
-
-    append_paragraph(
-        lines,
-        "The runtime dataset contains the active Kolektria scan files selected "
-        "for this Remetria run. Scan identifiers are assigned numerically for "
-        "the analysis, while the source filename remains available for traceability.",
     )
 
-    lines.append(markdown_table(
+
+def append_runtime_input(
+    lines: list[str],
+    scan_rows: list[dict[str, Any]],
+    ranking_rows: list[dict[str, Any]],
+) -> None:
+    """Append the runtime input section."""
+
+    add_heading(lines, "Runtime Input")
+
+    if not scan_rows:
+        add_paragraph(lines, "No scan summary rows were produced.")
+        return
+
+    top_cpri_by_scan = get_top_cpri_kb_by_scan(ranking_rows)
+
+    add_paragraph(
+        lines,
+        "This section summarises the Kolektria scan files selected for this "
+        "analysis run. Remetria assigns numeric scan IDs for readable output, "
+        "while the source path keeps each row traceable to the original JSON file.",
+    )
+
+    add_table(
+        lines=lines,
         headers=[
             "Scan",
             "Source",
-            "OS",
+            "Windows State",
+            "Build",
             "LCU Month",
             "Patch Age",
             "Missing KBs",
-            "Candidates",
+            "Role",
             "CPRI Top KB",
         ],
         rows=[
             [
                 row.get("ScanId", ""),
-                Path(text(row.get("SourcePath", ""))).name,
-                f"{row.get('OsName', '')} {row.get('OsEdition', '')}".strip(),
+                source_name(row.get("SourcePath", "")),
+                (
+                    f"{row.get('OsName', '')} "
+                    f"{row.get('DisplayVersion', '')}"
+                ).strip(),
+                row.get("Build", ""),
                 row.get("LcuMonthId", ""),
                 row.get("PatchAgeDays", ""),
                 row.get("MissingKbCount", ""),
-                candidate_counts.get(text(row.get("ScanId")), 0),
+                get_scan_role(row),
                 top_cpri_by_scan.get(text(row.get("ScanId")), "n/a"),
             ]
-            for row in scan_rows
+            for row in sorted(scan_rows, key=lambda row: scan_sort_key(row.get("ScanId")))
         ],
-    ))
-
-
-def append_candidate_set(
-    lines: list[str],
-    candidate_rows: list[dict[str, Any]],
-) -> None:
-    """Append candidate set summary."""
-
-    write_section(lines, "Candidate Set")
-
-    if not candidate_rows:
-        append_paragraph(
-            lines,
-            "No missing KB remediation candidates were produced. Ranking and "
-            "evaluation are not applicable for this runtime dataset.",
-        )
-        return
-
-    grouped_rows = group_rows_by_scan_id(candidate_rows)
-
-    append_paragraph(
-        lines,
-        "Remetria treats each missing KB as a remediation candidate. Candidate "
-        "rows preserve the local patch context needed for CPRI ranking, including "
-        "patch age, CVE volume, supersedence and runtime prevalence.",
     )
 
-    lines.append(markdown_table(
+
+def append_candidate_state(
+    lines: list[str],
+    scan_rows: list[dict[str, Any]],
+    candidate_rows: list[dict[str, Any]],
+) -> None:
+    """Append candidate state summary."""
+
+    add_heading(lines, "Candidate State")
+
+    add_paragraph(
+        lines,
+        "Remetria treats each missing KB as a remediation candidate. This section "
+        "shows how candidate volume is distributed across the runtime scans before "
+        "external severity and advisory metadata influence the ranking order.",
+    )
+
+    grouped_candidates = group_rows_by_scan_id(candidate_rows)
+
+    table_rows: list[list[Any]] = []
+
+    for scan_row in sorted(scan_rows, key=lambda row: scan_sort_key(row.get("ScanId"))):
+        scan_id = text(scan_row.get("ScanId"))
+        rows = grouped_candidates.get(scan_id, [])
+        candidate_count = len(rows)
+
+        if rows:
+            largest_cve_set = max(as_int(row.get("UniqueCveCount")) for row in rows)
+            repeated_candidates = len([
+                row
+                for row in rows
+                if as_int(row.get("MissingInRuntimeScanCount")) > 1
+            ])
+        else:
+            largest_cve_set = "n/a"
+            repeated_candidates = 0
+
+        table_rows.append([
+            scan_id,
+            candidate_count,
+            largest_cve_set,
+            repeated_candidates,
+            get_candidate_note(scan_row, candidate_count),
+        ])
+
+    add_table(
+        lines=lines,
         headers=[
             "Scan",
-            "Candidate Count",
-            "Largest Candidate CVE Count",
-            "Repeated Missing KBs",
+            "Candidates",
+            "Largest CVE Set",
+            "Repeated Candidates",
+            "Interpretation",
         ],
-        rows=[
-            [
-                scan_id,
-                len(rows),
-                max(as_int(row.get("UniqueCveCount")) for row in rows),
-                len([
-                    row
-                    for row in rows
-                    if as_int(row.get("MissingInRuntimeScanCount")) > 1
-                ]),
-            ]
-            for scan_id, rows in sorted(
-                grouped_rows.items(),
-                key=lambda item: as_int(item[0]),
-            )
-        ],
-    ))
+        rows=table_rows,
+    )
 
 
 def append_enrichment_coverage(
@@ -406,10 +577,10 @@ def append_enrichment_coverage(
 ) -> None:
     """Append enrichment coverage summary."""
 
-    write_section(lines, "Enrichment Coverage")
+    add_heading(lines, "Enrichment Coverage")
 
     if not enrichment_rows:
-        append_paragraph(lines, "No CVE enrichment rows were produced.")
+        add_paragraph(lines, "No CVE enrichment rows were produced.")
         return
 
     resolved_count = count_rows(
@@ -419,64 +590,132 @@ def append_enrichment_coverage(
     )
     missing_count = len(enrichment_rows) - resolved_count
 
-    append_paragraph(
+    add_paragraph(
         lines,
-        "The enrichment stage used MSRC CVRF metadata to attach advisory and "
-        "CVSS fields to the CVEs observed in the Kolektria evidence. These fields "
-        "support CVSS-only, MSRC-only and CPRI ranking.",
+        "The enrichment stage resolves observed CVEs into advisory and CVSS "
+        "metadata. These fields support the baseline rankings and the CPRI "
+        "calculation used later in the report.",
     )
 
-    lines.append(markdown_table(
-        headers=["Metric", "Value"],
+    add_table(
+        lines=lines,
+        headers=["Metric", "Value", "Meaning"],
         rows=[
-            ["Unique CVEs observed", len(enrichment_rows)],
-            ["Resolved CVEs", resolved_count],
-            ["Missing enrichment rows", missing_count],
-            ["CVSS Critical", count_rows(enrichment_rows, "CvssSeverity", "CRITICAL")],
-            ["CVSS High", count_rows(enrichment_rows, "CvssSeverity", "HIGH")],
-            ["CVSS Medium", count_rows(enrichment_rows, "CvssSeverity", "MEDIUM")],
-            ["CVSS Low", count_rows(enrichment_rows, "CvssSeverity", "LOW")],
-            ["CVSS Unknown", count_rows(enrichment_rows, "CvssSeverity", "UNKNOWN")],
-            ["MSRC known exploited", count_truthy(enrichment_rows, "MsrcKnownExploited")],
+            [
+                "Unique CVEs observed",
+                len(enrichment_rows),
+                "Distinct CVEs gathered from the runtime scan evidence.",
+            ],
+            [
+                "Resolved CVEs",
+                resolved_count,
+                "CVE rows with enrichment metadata available.",
+            ],
+            [
+                "Missing enrichment rows",
+                missing_count,
+                "CVE rows that could not be enriched during this run.",
+            ],
+            [
+                "CVSS Critical",
+                count_rows(enrichment_rows, "CvssSeverity", "CRITICAL"),
+                "Resolved CVEs with critical CVSS severity.",
+            ],
+            [
+                "CVSS High",
+                count_rows(enrichment_rows, "CvssSeverity", "HIGH"),
+                "Resolved CVEs with high CVSS severity.",
+            ],
+            [
+                "CVSS Medium",
+                count_rows(enrichment_rows, "CvssSeverity", "MEDIUM"),
+                "Resolved CVEs with medium CVSS severity.",
+            ],
+            [
+                "CVSS Low",
+                count_rows(enrichment_rows, "CvssSeverity", "LOW"),
+                "Resolved CVEs with low CVSS severity.",
+            ],
+            [
+                "CVSS Unknown",
+                count_rows(enrichment_rows, "CvssSeverity", "UNKNOWN"),
+                "Resolved CVEs without a usable CVSS severity value.",
+            ],
+            [
+                "MSRC known exploited",
+                count_truthy(enrichment_rows, "MsrcKnownExploited"),
+                "CVEs marked with known exploitation metadata.",
+            ],
             [
                 "MSRC publicly disclosed",
                 count_truthy(enrichment_rows, "MsrcPubliclyDisclosed"),
+                "CVEs marked with public disclosure metadata.",
             ],
         ],
-    ))
+    )
 
 
-def append_ranking_comparison(
+def append_ranking_method(lines: list[str]) -> None:
+    """Append ranking method explanation."""
+
+    add_heading(lines, "Ranking Method")
+
+    add_paragraph(
+        lines,
+        "Remetria compares three deterministic ranking methods. CVSS-only and "
+        "MSRC-only provide baseline views. CPRI, the Contextual Patch Remediation "
+        "Index, combines enriched vulnerability metadata with local remediation "
+        "context from the Kolektria scan evidence.",
+    )
+
+    add_table(
+        lines=lines,
+        headers=["Method", "Ranking Basis", "Role in Report"],
+        rows=[
+            [
+                "CVSS-only",
+                "Uses CVSS-derived severity and score fields.",
+                "Severity baseline for comparing remediation order.",
+            ],
+            [
+                "MSRC-only",
+                "Uses Microsoft advisory severity and exploit/disclosure metadata.",
+                "Advisory baseline for comparing remediation order.",
+            ],
+            [
+                "CPRI",
+                "Combines external vulnerability metadata with local KB context.",
+                "Proposed context-aware remediation ranking.",
+            ],
+        ],
+    )
+
+
+def append_ranking_evidence(
     lines: list[str],
     ranking_rows: list[dict[str, Any]],
 ) -> None:
-    """Append ranking comparison summary."""
+    """Append ranking evidence section."""
 
-    write_section(lines, "Ranking Comparison")
+    add_heading(lines, "Ranking Evidence")
 
     if not ranking_rows:
-        append_paragraph(
+        add_paragraph(
             lines,
-            "No ranking comparison rows were produced because no missing KB "
-            "remediation candidates were available.",
+            "No ranking rows were produced because the runtime dataset did not "
+            "contain missing KB remediation candidates.",
         )
         return
 
-    append_paragraph(
+    add_paragraph(
         lines,
-        "Remetria compares three deterministic ranking methods. CVSS ranks "
-        "candidates by CVSS-derived severity fields. MSRC ranks candidates by "
-        "Microsoft advisory severity and advisory exploit/disclosure signals. "
-        "CPRI is the proposed Contextual Patch Remediation Index, which combines "
-        "external vulnerability metadata with local remediation context.",
+        "This section shows the highest-priority CPRI candidate for each "
+        "candidate-bearing scan. The CVSS and MSRC rank columns show whether the "
+        "same candidate was also prioritised by the baseline methods.",
     )
 
-    top_rows = sorted(
-        get_cpri_top_rows(ranking_rows),
-        key=lambda row: as_int(row.get("ScanId")),
-    )
-
-    lines.append(markdown_table(
+    add_table(
+        lines=lines,
         headers=[
             "Scan",
             "CPRI Top KB",
@@ -492,23 +731,34 @@ def append_ranking_comparison(
                 row.get("KB", ""),
                 row.get("CVSSRank", ""),
                 row.get("MSRCRank", ""),
-                format_score(row.get("CPRIScore")),
+                format_decimal(row.get("CPRIScore")),
                 row.get("MaxCvssBaseScore", ""),
                 row.get("MaxMsrcSeverity", ""),
             ]
-            for row in top_rows
+            for row in get_cpri_top_rows(ranking_rows)
         ],
-    ))
+    )
 
     movement_rows = get_largest_movement_rows(ranking_rows)
 
     if not movement_rows:
+        add_paragraph(
+            lines,
+            "No CPRI rank movement was observed in this run. Candidate ordering "
+            "matched the compared baseline ranks for all candidate-bearing scans.",
+        )
         return
 
-    lines.append("")
-    lines.append("Largest observed CPRI rank movements:")
-    lines.append("")
-    lines.append(markdown_table(
+    add_paragraph(
+        lines,
+        "The next table lists the largest observed rank movements. The signed "
+        "movement columns preserve direction from the ranking comparison output. "
+        "The absolute size of the movement is the main indicator of how much the "
+        "candidate order changed.",
+    )
+
+    add_table(
+        lines=lines,
         headers=[
             "Scan",
             "KB",
@@ -530,7 +780,7 @@ def append_ranking_comparison(
             ]
             for row in movement_rows
         ],
-    ))
+    )
 
 
 def append_evaluation_metrics(
@@ -539,68 +789,96 @@ def append_evaluation_metrics(
 ) -> None:
     """Append evaluation metrics summary."""
 
-    write_section(lines, "Evaluation Metrics")
+    add_heading(lines, "Evaluation Metrics")
 
     if not evaluation_rows:
-        append_paragraph(lines, "No evaluation metrics were produced.")
+        add_paragraph(lines, "No evaluation metrics were produced.")
         return
 
     aggregate_row = find_aggregate_row(evaluation_rows)
 
     if not aggregate_row:
-        append_paragraph(lines, "Aggregate evaluation metrics were not produced.")
+        add_paragraph(lines, "Aggregate evaluation metrics were not produced.")
         return
 
-    lines.append(markdown_table(
-        headers=["Metric", "Value"],
+    add_paragraph(
+        lines,
+        "Evaluation metrics describe how CPRI compares with the two baseline "
+        "methods. Top-1 agreement checks whether CPRI selected the same highest "
+        "priority KB. Top-N overlap checks similarity across the upper-ranked "
+        "candidate set. Absolute movement measures ranking change magnitude.",
+    )
+
+    add_table(
+        lines=lines,
+        headers=["Metric", "Value", "Meaning"],
         rows=[
-            ["Candidate count", aggregate_row.get("CandidateCount", "")],
+            [
+                "Candidate count",
+                aggregate_row.get("CandidateCount", ""),
+                "Total candidate rows included in ranking comparison.",
+            ],
             [
                 "Candidate-bearing scans",
                 aggregate_row.get("CandidateBearingScanCount", ""),
+                "Scans with at least one ranked candidate.",
             ],
             [
                 "CPRI/CVSS top-1 match ratio",
-                format_number(aggregate_row.get("CVSSTop1MatchRatio")),
+                format_decimal(aggregate_row.get("CVSSTop1MatchRatio")),
+                "Share of scans where CPRI and CVSS selected the same top KB.",
             ],
             [
                 "CPRI/MSRC top-1 match ratio",
-                format_number(aggregate_row.get("MSRCTop1MatchRatio")),
+                format_decimal(aggregate_row.get("MSRCTop1MatchRatio")),
+                "Share of scans where CPRI and MSRC selected the same top KB.",
             ],
             [
                 "Average CVSS/CPRI top-N overlap",
-                format_number(aggregate_row.get("CVSSCPRITopNOverlapRatio")),
+                format_decimal(aggregate_row.get("CVSSCPRITopNOverlapRatio")),
+                "Average upper-rank overlap between CVSS and CPRI.",
             ],
             [
                 "Average MSRC/CPRI top-N overlap",
-                format_number(aggregate_row.get("MSRCCPRITopNOverlapRatio")),
+                format_decimal(aggregate_row.get("MSRCCPRITopNOverlapRatio")),
+                "Average upper-rank overlap between MSRC and CPRI.",
             ],
             [
                 "Average absolute movement vs CVSS",
                 format_number(aggregate_row.get("AverageAbsoluteCPRIvsCVSSMovement")),
+                "Average rank movement magnitude compared with CVSS.",
             ],
             [
                 "Average absolute movement vs MSRC",
                 format_number(aggregate_row.get("AverageAbsoluteCPRIvsMSRCMovement")),
+                "Average rank movement magnitude compared with MSRC.",
             ],
             [
                 "Maximum absolute movement vs CVSS",
                 aggregate_row.get("MaxAbsoluteCPRIvsCVSSMovement", ""),
+                "Largest candidate movement compared with CVSS.",
             ],
             [
                 "Maximum absolute movement vs MSRC",
                 aggregate_row.get("MaxAbsoluteCPRIvsMSRCMovement", ""),
+                "Largest candidate movement compared with MSRC.",
             ],
         ],
-    ))
+    )
 
     scan_rows = find_scan_evaluation_rows(evaluation_rows)
 
     if not scan_rows:
         return
 
-    lines.append("")
-    lines.append(markdown_table(
+    add_paragraph(
+        lines,
+        "The scan-level view shows where CPRI agreed with the baseline top-ranked "
+        "KB and where local context changed the ordering.",
+    )
+
+    add_table(
+        lines=lines,
         headers=[
             "Scan",
             "Candidates",
@@ -622,7 +900,7 @@ def append_evaluation_metrics(
             ]
             for row in scan_rows
         ],
-    ))
+    )
 
 
 def append_interpretation(
@@ -631,71 +909,120 @@ def append_interpretation(
 ) -> None:
     """Append controlled interpretation notes."""
 
-    write_section(lines, "Interpretation")
+    add_heading(lines, "Interpretation")
 
     aggregate_row = find_aggregate_row(evaluation_rows)
 
     if not aggregate_row:
-        append_paragraph(
+        add_paragraph(
             lines,
-            "No aggregate ranking metrics were available. This usually means "
-            "there were no missing KB remediation candidates in the runtime dataset.",
+            "No aggregate ranking metrics were available. This usually indicates "
+            "that the runtime dataset did not contain missing KB remediation "
+            "candidates.",
         )
         return
 
-    append_paragraph(
+    cvss_top1 = as_float(aggregate_row.get("CVSSTop1MatchRatio"))
+    msrc_top1 = as_float(aggregate_row.get("MSRCTop1MatchRatio"))
+    cvss_movement = as_float(aggregate_row.get("AverageAbsoluteCPRIvsCVSSMovement"))
+    msrc_movement = as_float(aggregate_row.get("AverageAbsoluteCPRIvsMSRCMovement"))
+
+    interpretation_points: list[str] = []
+
+    if cvss_top1 == 1.0:
+        interpretation_points.append(
+            "CPRI selected the same top KB as CVSS-only in every candidate-bearing "
+            "scan, so the context-aware method preserved the strongest CVSS-led "
+            "priority in this dataset."
+        )
+    elif cvss_top1 > 0:
+        interpretation_points.append(
+            "CPRI matched the CVSS-only top KB in some candidate-bearing scans and "
+            "changed the top candidate in others."
+        )
+    else:
+        interpretation_points.append(
+            "CPRI did not select the same top KB as CVSS-only in the candidate-bearing "
+            "scans from this run."
+        )
+
+    if msrc_top1 < cvss_top1:
+        interpretation_points.append(
+            "CPRI diverged more from MSRC-only top-1 ranking than from CVSS-only "
+            "top-1 ranking in this run."
+        )
+    elif msrc_top1 == cvss_top1:
+        interpretation_points.append(
+            "CPRI showed the same top-1 agreement level with CVSS-only and MSRC-only "
+            "ranking in this run."
+        )
+    else:
+        interpretation_points.append(
+            "CPRI showed stronger top-1 agreement with MSRC-only ranking than with "
+            "CVSS-only ranking in this run."
+        )
+
+    if cvss_movement > 0 or msrc_movement > 0:
+        interpretation_points.append(
+            "Rank movement was present below the top candidate level. Average "
+            "absolute movement is the clearest measure because signed movements "
+            "can cancel each other within the same scan."
+        )
+    else:
+        interpretation_points.append(
+            "No average absolute rank movement was observed against the compared "
+            "baselines in this run."
+        )
+
+    add_bullets(lines, interpretation_points)
+
+
+def append_method(lines: list[str]) -> None:
+    """Append method notes."""
+
+    add_heading(lines, "Method")
+
+    add_paragraph(
         lines,
-        "CVSS-only and MSRC-only rankings are used as baseline prioritisation "
-        "methods, not ground truth labels. CPRI is the proposed context-aware "
-        "ranking method for this Windows KB remediation workflow.",
+        "Remetria uses Kolektria scan output as its input evidence. The analysis "
+        "workflow keeps collection, enrichment, ranking and export steps separate "
+        "so each stage can be reviewed independently.",
     )
 
-    append_paragraph(
+    add_bullets(
         lines,
-        "Where CPRI matches a baseline top-ranked KB, the context-aware method "
-        "preserves that priority. Where CPRI changes candidate order, the movement "
-        "is explained by the combination of local patch context and enriched "
-        "advisory metadata.",
+        [
+            "Load selected Kolektria JSON scans from the active runtime directory.",
+            "Normalise baseline, KB and CVE evidence into tabular row sets.",
+            "Convert missing KBs into remediation candidate rows.",
+            "Enrich observed CVEs with advisory and CVSS metadata.",
+            "Rank candidates using CVSS-only, MSRC-only and CPRI methods.",
+            "Export JSON, CSV tables and this Markdown report into one timestamped analysis folder.",
+        ],
     )
 
-    append_paragraph(
+
+def append_scope_notes(lines: list[str]) -> None:
+    """Append scope notes."""
+
+    add_heading(lines, "Scope Notes")
+
+    add_paragraph(
         lines,
-        "Average signed movement can balance to zero because movement within a "
-        "scan is directional. Average absolute movement is the more useful metric "
-        "for describing how much the ranking order changed.",
+        "These notes define the boundaries of the Remetria analysis output and "
+        "support correct interpretation of the evidence.",
     )
 
-
-def append_limitations(lines: list[str]) -> None:
-    """Append report limitations."""
-
-    write_section(lines, "Limitations")
-
-    lines.append(
-        "- Remetria evaluates deterministic ranking behaviour. It does not provide "
-        "supervised machine-learning accuracy because independent ground-truth "
-        "remediation labels were not available."
-    )
-    lines.append(
-        "- CVSS and MSRC severity are baseline ranking signals. They are not treated "
-        "as proof that a candidate is the objectively correct remediation priority."
-    )
-    lines.append(
-        "- CPRI is a lightweight context-aware remediation index for this project "
-        "workflow. It is not presented as a replacement for established "
-        "vulnerability prioritisation frameworks."
-    )
-    lines.append(
-        "- Remetria does not perform exploit testing, vulnerability scanning, "
-        "automatic patching, or production remediation."
-    )
-    lines.append(
-        "- Ranking results depend on the Kolektria scan evidence and the MSRC CVRF "
-        "metadata available during enrichment."
-    )
-    lines.append(
-        "- Patch age contributes to local context, but in per-scan ranking it may "
-        "be constant across candidates from the same host."
+    add_bullets(
+        lines,
+        [
+            "The report evaluates deterministic ranking behaviour.",
+            "CVSS-only and MSRC-only rankings are comparison baselines, not ground-truth remediation labels.",
+            "CPRI is the Contextual Patch Remediation Index used by this project workflow.",
+            "The tool performs analysis and reporting. Vulnerability scanning, exploit testing, patch installation and production remediation execution are outside this workflow.",
+            "Ranking results depend on the Kolektria scan evidence and the enrichment metadata available for the analysed CVEs.",
+            "Patch age contributes to local context, but it can be constant across candidates from the same host.",
+        ],
     )
 
 
@@ -716,42 +1043,47 @@ def build_markdown_report(analysis_result: dict[str, Any]) -> str:
 
     lines.append("# Remetria Analysis Report")
     lines.append("")
+    lines.append(
+        "Remetria is a Windows patch-remediation analysis tool. It consumes "
+        "Kolektria scan evidence, enriches observed CVEs with advisory and CVSS "
+        "metadata, ranks missing KB candidates using CVSS-only, MSRC-only and "
+        "CPRI methods, and exports comparison evidence for dissertation evaluation."
+    )
+    lines.append("")
 
+    append_report_metadata(lines, analysis_result)
     append_analysis_outcome(
         lines=lines,
-        analysis_result=analysis_result,
         scan_rows=scan_rows,
         candidate_rows=candidate_rows,
         enrichment_rows=enrichment_rows,
         ranking_rows=ranking_rows,
         evaluation_rows=evaluation_rows,
     )
-    append_runtime_dataset(
-        lines=lines,
-        scan_rows=scan_rows,
-        candidate_rows=candidate_rows,
-        ranking_rows=ranking_rows,
-    )
-    append_candidate_set(lines, candidate_rows)
+    append_runtime_input(lines, scan_rows, ranking_rows)
+    append_candidate_state(lines, scan_rows, candidate_rows)
     append_enrichment_coverage(lines, enrichment_rows)
-    append_ranking_comparison(lines, ranking_rows)
+    append_ranking_method(lines)
+    append_ranking_evidence(lines, ranking_rows)
     append_evaluation_metrics(lines, evaluation_rows)
     append_interpretation(lines, evaluation_rows)
-    append_limitations(lines)
+    append_method(lines)
+    append_scope_notes(lines)
 
-    lines.append("")
-
-    return "\n".join(lines)
+    return "\n".join(lines).rstrip() + "\n"
 
 
-def write_markdown_report(analysis_result: dict[str, Any]) -> Path:
+def write_markdown_report(
+    analysis_result: dict[str, Any],
+    report_path: Path,
+) -> Path:
     """Write the Remetria Markdown report."""
 
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
 
     report_content = build_markdown_report(analysis_result)
 
-    with REPORT_PATH.open("w", encoding="utf-8") as file:
+    with report_path.open("w", encoding="utf-8") as file:
         file.write(report_content)
 
-    return REPORT_PATH
+    return report_path
