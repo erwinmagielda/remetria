@@ -280,13 +280,16 @@ def clear_artefacts() -> None:
     result = clear_generated_artefacts()
 
     if result == "cleared":
+        print()
         print_success("Clear Artefacts completed")
         return
 
     if result == "cancelled":
+        print()
         print_info("Clear Artefacts cancelled")
         return
 
+    print()
     print_info("Clear Artefacts skipped")
 
 
