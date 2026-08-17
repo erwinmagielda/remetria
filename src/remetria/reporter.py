@@ -330,10 +330,10 @@ def get_rank_note(row: dict[str, Any]) -> str:
         return "CPRI preserved both baseline top priorities."
 
     if cpri_rank == 1 and cvss_rank == 1:
-        return "CPRI preserved the CVSS-only top priority while MSRC-only ranked it lower."
+        return "CPRI preserved the CVSS top priority while MSRC ranked it lower."
 
     if cpri_rank == 1 and msrc_rank == 1:
-        return "CPRI preserved the MSRC-only top priority while CVSS-only ranked it lower."
+        return "CPRI preserved the MSRC top priority while CVSS ranked it lower."
 
     if cpri_rank == 1:
         return "CPRI selected this as the top candidate after applying local context."
@@ -345,9 +345,9 @@ def get_rank_note(row: dict[str, Any]) -> str:
         return "Candidate position matched both baseline ranks."
 
     if abs(cvss_delta) >= abs(msrc_delta):
-        return "Candidate position changed mainly against the CVSS-only baseline."
+        return "Candidate position changed mainly against the CVSS baseline."
 
-    return "Candidate position changed mainly against the MSRC-only baseline."
+    return "Candidate position changed mainly against the MSRC baseline."
 
 
 def get_aggregate_interpretation(aggregate_row: dict[str, Any]) -> str:
@@ -358,8 +358,8 @@ def get_aggregate_interpretation(aggregate_row: dict[str, Any]) -> str:
 
     if cvss_agreement == 1.0 and msrc_agreement < cvss_agreement:
         return (
-            "CPRI selected the same top-ranked KB as CVSS-only in every "
-            "candidate-bearing scan, while diverging more clearly from MSRC-only "
+            "CPRI selected the same top-ranked KB as CVSS in every "
+            "candidate-bearing scan, while diverging more clearly from MSRC "
             "top-ranked selection. This means the context-aware method preserved "
             "high CVSS-led priority where it remained strongest, but still changed "
             "parts of the ordering when local and advisory context affected "
@@ -368,15 +368,15 @@ def get_aggregate_interpretation(aggregate_row: dict[str, Any]) -> str:
 
     if cvss_agreement > msrc_agreement:
         return (
-            "CPRI showed stronger top-ranked KB agreement with CVSS-only than with "
-            "MSRC-only in this run. The movement metrics describe how much the "
+            "CPRI showed stronger top-ranked KB agreement with CVSS than with "
+            "MSRC in this run. The movement metrics describe how much the "
             "candidate order changed beyond the top-ranked KB."
         )
 
     if msrc_agreement > cvss_agreement:
         return (
-            "CPRI showed stronger top-ranked KB agreement with MSRC-only than with "
-            "CVSS-only in this run. The movement metrics describe how much the "
+            "CPRI showed stronger top-ranked KB agreement with MSRC than with "
+            "CVSS in this run. The movement metrics describe how much the "
             "candidate order changed beyond the top-ranked KB."
         )
 
@@ -511,7 +511,7 @@ def append_analysis_outcome(
             [
                 "Ranking Rows",
                 len(ranking_rows),
-                "Candidate rows compared across CVSS-only, MSRC-only and CPRI.",
+                "Candidate rows compared across CVSS, MSRC and CPRI.",
             ],
             [
                 "Evaluation Rows",
@@ -564,7 +564,7 @@ def append_path_references(
             [
                 "CSV Tables",
                 code(output_paths.get("TablesDir", "")),
-                "Tabular outputs used for checking and dissertation evidence.",
+                "Tabular outputs used for checking and review evidence.",
             ],
             [
                 "Markdown Report",
@@ -807,19 +807,19 @@ def append_ranking_method(lines: list[str]) -> None:
         headers=["Method", "Basis", "Description"],
         rows=[
             [
-                "CVSS-only",
+                "CVSS",
                 "CVSS-derived score and severity fields.",
-                "Severity baseline used to compare candidate order.",
+                "Baseline ranking method using vulnerability severity evidence.",
             ],
             [
-                "MSRC-only",
+                "MSRC",
                 "Microsoft advisory severity and exploit/disclosure metadata.",
-                "Advisory baseline used to compare candidate order.",
+                "Baseline ranking method using Microsoft advisory evidence.",
             ],
             [
                 "CPRI",
                 "Contextual Patch Remediation Index.",
-                "Context-aware method combining enriched metadata with local KB remediation context.",
+                "Context-aware ranking method combining enriched vulnerability evidence with local KB remediation context.",
             ],
         ],
     )
@@ -893,8 +893,8 @@ def append_ranking_evidence(
             lines=lines,
             headers=[
                 "KB",
-                "CVSS-only Rank",
-                "MSRC-only Rank",
+                "CVSS Rank",
+                "MSRC Rank",
                 "CPRI Rank",
                 "CPRI Score",
                 "Max CVSS",
@@ -953,42 +953,42 @@ def append_evaluation_metrics(
             [
                 "CPRI/CVSS Top-Ranked KB Agreement",
                 format_decimal(aggregate_row.get("CVSSTop1MatchRatio")),
-                "Share of scans where CPRI and CVSS-only selected the same top-ranked KB.",
+                "Share of scans where CPRI and CVSS selected the same top-ranked KB.",
             ],
             [
                 "CPRI/MSRC Top-Ranked KB Agreement",
                 format_decimal(aggregate_row.get("MSRCTop1MatchRatio")),
-                "Share of scans where CPRI and MSRC-only selected the same top-ranked KB.",
+                "Share of scans where CPRI and MSRC selected the same top-ranked KB.",
             ],
             [
                 "Average CVSS/CPRI Top-N Overlap",
                 format_decimal(aggregate_row.get("CVSSCPRITopNOverlapRatio")),
-                "Average upper-rank overlap between CVSS-only and CPRI.",
+                "Average upper-rank overlap between CVSS and CPRI.",
             ],
             [
                 "Average MSRC/CPRI Top-N Overlap",
                 format_decimal(aggregate_row.get("MSRCCPRITopNOverlapRatio")),
-                "Average upper-rank overlap between MSRC-only and CPRI.",
+                "Average upper-rank overlap between MSRC and CPRI.",
             ],
             [
                 "Average Absolute Movement vs CVSS",
                 format_number(aggregate_row.get("AverageAbsoluteCPRIvsCVSSMovement")),
-                "Average rank movement magnitude compared with CVSS-only.",
+                "Average rank movement magnitude compared with CVSS.",
             ],
             [
                 "Average Absolute Movement vs MSRC",
                 format_number(aggregate_row.get("AverageAbsoluteCPRIvsMSRCMovement")),
-                "Average rank movement magnitude compared with MSRC-only.",
+                "Average rank movement magnitude compared with MSRC.",
             ],
             [
                 "Maximum Absolute Movement vs CVSS",
                 aggregate_row.get("MaxAbsoluteCPRIvsCVSSMovement", ""),
-                "Largest candidate movement compared with CVSS-only.",
+                "Largest candidate movement compared with CVSS.",
             ],
             [
                 "Maximum Absolute Movement vs MSRC",
                 aggregate_row.get("MaxAbsoluteCPRIvsMSRCMovement", ""),
-                "Largest candidate movement compared with MSRC-only.",
+                "Largest candidate movement compared with MSRC.",
             ],
         ],
     )
@@ -1051,9 +1051,9 @@ def append_method(lines: list[str]) -> None:
     add_paragraph(
         lines,
         "Observed CVEs are enriched with advisory and CVSS metadata. The enriched "
-        "candidate set is ranked through CVSS-only, MSRC-only and CPRI methods. "
-        "The resulting ranking rows are evaluated through top-ranked KB agreement, "
-        "top-N overlap and absolute rank movement metrics."
+        "candidate set is ranked through CVSS, MSRC and CPRI methods. The resulting "
+        "ranking rows are evaluated through top-ranked KB agreement, top-N overlap "
+        "and absolute rank movement metrics."
     )
 
     add_paragraph(
@@ -1071,10 +1071,9 @@ def append_scope_notes(lines: list[str]) -> None:
 
     add_paragraph(
         lines,
-        "The report evaluates deterministic ranking behaviour. CVSS-only and "
-        "MSRC-only rankings are comparison baselines, not ground-truth remediation "
-        "labels. CPRI is the Contextual Patch Remediation Index used by this "
-        "project workflow."
+        "The report evaluates deterministic ranking behaviour. CVSS and MSRC "
+        "rankings are comparison baselines, not ground-truth remediation labels. "
+        "CPRI is the Contextual Patch Remediation Index used by this project workflow."
     )
 
     add_paragraph(
@@ -1113,8 +1112,8 @@ def build_markdown_report(analysis_result: dict[str, Any]) -> str:
     lines.append(
         "Remetria is a Windows patch-remediation analysis tool. It consumes "
         "Kolektria scan evidence, enriches observed CVEs with advisory and CVSS "
-        "metadata, ranks missing KB candidates using CVSS-only, MSRC-only and "
-        "CPRI methods, and exports comparison evidence for ranking evaluation."
+        "metadata, ranks missing KB candidates using CVSS, MSRC and CPRI methods, "
+        "and exports comparison evidence for ranking evaluation."
     )
 
     append_analysis_outcome(
