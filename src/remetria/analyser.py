@@ -215,11 +215,11 @@ def run_analysis() -> None:
     aggregate_row = find_aggregate_evaluation_row(evaluation_metric_rows)
     print_detail(f"Evaluation rows: {len(evaluation_metric_rows)}")
     print_detail(
-        "CPRI/CVSS top-1 match ratio: "
+        "CPRI/CVSS Top-Ranked KB Agreement: "
         f"{format_ratio(aggregate_row.get('CVSSTop1MatchRatio'))}"
     )
     print_detail(
-        "CPRI/MSRC top-1 match ratio: "
+        "CPRI/MSRC Top-Ranked KB Agreement: "
         f"{format_ratio(aggregate_row.get('MSRCTop1MatchRatio'))}"
     )
     print_result("Evaluation metrics calculated")

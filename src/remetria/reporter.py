@@ -8,9 +8,8 @@ and evaluation metrics without relying on bullet-heavy summaries.
 
 from __future__ import annotations
 
-from typing import Any
-
 from pathlib import Path
+from typing import Any
 
 
 # ------------------------------------------------------------
@@ -298,19 +297,19 @@ def get_scan_role(scan_row: dict[str, Any]) -> str:
     patch_age = as_int(scan_row.get("PatchAgeDays"))
 
     if missing_count == 0:
-        return "No-candidate control"
+        return "No-Candidate Control"
 
     if patch_age >= 180:
-        return "Aged patch state"
+        return "Aged Patch State"
 
     if patch_age >= 30:
-        return "Older patch state"
+        return "Older Patch State"
 
-    return "Recent patch state"
+    return "Recent Patch State"
 
 
-def get_runtime_input_explanation(scan_row: dict[str, Any]) -> str:
-    """Return a runtime input explanation."""
+def get_runtime_input_description(scan_row: dict[str, Any]) -> str:
+    """Return a runtime input description."""
 
     missing_count = as_int(scan_row.get("MissingKbCount"))
 
@@ -320,8 +319,8 @@ def get_runtime_input_explanation(scan_row: dict[str, Any]) -> str:
     return "Provides missing KB evidence for candidate ranking."
 
 
-def get_rank_explanation(row: dict[str, Any]) -> str:
-    """Return a short ranking explanation for one candidate row."""
+def get_rank_note(row: dict[str, Any]) -> str:
+    """Return a short ranking note for one candidate row."""
 
     cvss_rank = as_int(row.get("CVSSRank"))
     msrc_rank = as_int(row.get("MSRCRank"))
@@ -331,10 +330,10 @@ def get_rank_explanation(row: dict[str, Any]) -> str:
         return "CPRI preserved both baseline top priorities."
 
     if cpri_rank == 1 and cvss_rank == 1:
-        return "CPRI preserved the CVSS top priority while MSRC ranked it lower."
+        return "CPRI preserved the CVSS-only top priority while MSRC-only ranked it lower."
 
     if cpri_rank == 1 and msrc_rank == 1:
-        return "CPRI preserved the MSRC top priority while CVSS ranked it lower."
+        return "CPRI preserved the MSRC-only top priority while CVSS-only ranked it lower."
 
     if cpri_rank == 1:
         return "CPRI selected this as the top candidate after applying local context."
@@ -346,43 +345,44 @@ def get_rank_explanation(row: dict[str, Any]) -> str:
         return "Candidate position matched both baseline ranks."
 
     if abs(cvss_delta) >= abs(msrc_delta):
-        return "Candidate position changed mainly against the CVSS baseline."
+        return "Candidate position changed mainly against the CVSS-only baseline."
 
-    return "Candidate position changed mainly against the MSRC baseline."
+    return "Candidate position changed mainly against the MSRC-only baseline."
 
 
 def get_aggregate_interpretation(aggregate_row: dict[str, Any]) -> str:
     """Return aggregate interpretation paragraph."""
 
-    cvss_ratio = as_float(aggregate_row.get("CVSSTop1MatchRatio"))
-    msrc_ratio = as_float(aggregate_row.get("MSRCTop1MatchRatio"))
+    cvss_agreement = as_float(aggregate_row.get("CVSSTop1MatchRatio"))
+    msrc_agreement = as_float(aggregate_row.get("MSRCTop1MatchRatio"))
 
-    if cvss_ratio == 1.0 and msrc_ratio < cvss_ratio:
+    if cvss_agreement == 1.0 and msrc_agreement < cvss_agreement:
         return (
-            "CPRI selected the same top KB as CVSS-only in every candidate-bearing "
-            "scan, while diverging more clearly from MSRC-only top-rank selection. "
-            "This means the context-aware method preserved high CVSS-led priority "
-            "where it remained strongest, but still changed parts of the ordering "
-            "when local and advisory context affected candidate placement."
+            "CPRI selected the same top-ranked KB as CVSS-only in every "
+            "candidate-bearing scan, while diverging more clearly from MSRC-only "
+            "top-ranked selection. This means the context-aware method preserved "
+            "high CVSS-led priority where it remained strongest, but still changed "
+            "parts of the ordering when local and advisory context affected "
+            "candidate placement."
         )
 
-    if cvss_ratio > msrc_ratio:
+    if cvss_agreement > msrc_agreement:
         return (
-            "CPRI showed stronger top-rank agreement with CVSS-only than with "
+            "CPRI showed stronger top-ranked KB agreement with CVSS-only than with "
             "MSRC-only in this run. The movement metrics describe how much the "
             "candidate order changed beyond the top-ranked KB."
         )
 
-    if msrc_ratio > cvss_ratio:
+    if msrc_agreement > cvss_agreement:
         return (
-            "CPRI showed stronger top-rank agreement with MSRC-only than with "
+            "CPRI showed stronger top-ranked KB agreement with MSRC-only than with "
             "CVSS-only in this run. The movement metrics describe how much the "
             "candidate order changed beyond the top-ranked KB."
         )
 
     return (
-        "CPRI showed the same top-rank agreement level with both baselines in "
-        "this run. Absolute movement remains the main measure for lower-rank "
+        "CPRI showed the same top-ranked KB agreement level with both baselines "
+        "in this run. Absolute movement remains the main measure for lower-rank "
         "ordering changes."
     )
 
@@ -473,7 +473,7 @@ def append_analysis_outcome(
 
     add_table(
         lines=lines,
-        headers=["Analysis Field", "Value", "Explanation"],
+        headers=["Analysis Field", "Value", "Description"],
         rows=[
             [
                 "Run ID",
@@ -486,12 +486,12 @@ def append_analysis_outcome(
                 "UTC timestamp for the generated report and output files.",
             ],
             [
-                "Runtime scans",
+                "Runtime Scans",
                 len(scan_rows),
                 "Kolektria JSON files loaded from the runtime input folder.",
             ],
             [
-                "Candidate-bearing scans",
+                "Candidate-Bearing Scans",
                 aggregate_row.get(
                     "CandidateBearingScanCount",
                     get_candidate_bearing_scan_count(candidate_rows),
@@ -499,22 +499,22 @@ def append_analysis_outcome(
                 "Scans with at least one missing KB available for ranking.",
             ],
             [
-                "Missing KB candidates",
+                "Missing KB Candidates",
                 len(candidate_rows),
                 "KB remediation candidates created from missing update evidence.",
             ],
             [
-                "Unique CVEs enriched",
+                "Unique CVEs Enriched",
                 len(enrichment_rows),
                 "Distinct CVEs resolved into enrichment metadata rows.",
             ],
             [
-                "Ranking rows",
+                "Ranking Rows",
                 len(ranking_rows),
                 "Candidate rows compared across CVSS-only, MSRC-only and CPRI.",
             ],
             [
-                "Evaluation rows",
+                "Evaluation Rows",
                 len(evaluation_rows),
                 "Scan-level and aggregate comparison metrics.",
             ],
@@ -544,15 +544,15 @@ def append_path_references(
 
     add_table(
         lines=lines,
-        headers=["Path Field", "Recorded Path", "Explanation"],
+        headers=["Path Field", "Recorded Path", "Description"],
         rows=[
             [
-                "Runtime input",
+                "Runtime Input",
                 code(analysis_result.get("RuntimeInput", "")),
                 "Folder containing the Kolektria scan JSON files selected for analysis.",
             ],
             [
-                "Output root",
+                "Output Root",
                 code(analysis_result.get("OutputRoot", "")),
                 "Timestamped folder containing all generated Remetria artefacts.",
             ],
@@ -562,12 +562,12 @@ def append_path_references(
                 "Machine-readable full analysis result.",
             ],
             [
-                "CSV tables",
+                "CSV Tables",
                 code(output_paths.get("TablesDir", "")),
                 "Tabular outputs used for checking and dissertation evidence.",
             ],
             [
-                "Markdown report",
+                "Markdown Report",
                 code(output_paths.get("ReportPath", "")),
                 "Readable report generated from the same analysis result.",
             ],
@@ -602,7 +602,7 @@ def append_runtime_input(
             "Patch Age",
             "Missing KBs",
             "Analysis Role",
-            "Explanation",
+            "Description",
         ],
         rows=[
             [
@@ -617,7 +617,7 @@ def append_runtime_input(
                 row.get("PatchAgeDays", ""),
                 row.get("MissingKbCount", ""),
                 get_scan_role(row),
-                get_runtime_input_explanation(row),
+                get_runtime_input_description(row),
             ]
             for row in sorted(scan_rows, key=lambda row: scan_sort_key(row.get("ScanId")))
         ],
@@ -626,8 +626,8 @@ def append_runtime_input(
     if top_cpri_by_scan:
         add_paragraph(
             lines,
-            "Scans without a CPRI top KB did not contain missing KB candidates and "
-            "were therefore excluded from candidate ranking.",
+            "Scans without a CPRI top-ranked KB did not contain missing KB "
+            "candidates and were therefore excluded from candidate ranking.",
         )
 
 
@@ -648,20 +648,20 @@ def append_evidence_normalisation(
 
     add_table(
         lines=lines,
-        headers=["Evidence Row Set", "Rows", "Explanation"],
+        headers=["Evidence Row Set", "Rows", "Description"],
         rows=[
             [
-                "Scan summary rows",
+                "Scan Summary Rows",
                 len(scan_rows),
                 "One summary row per loaded Kolektria scan.",
             ],
             [
-                "CVE evidence rows",
+                "CVE Evidence Rows",
                 len(cve_rows),
                 "Observed KB-to-CVE relationships expanded from scan evidence.",
             ],
             [
-                "Candidate rows",
+                "Candidate Rows",
                 len(candidate_rows),
                 "Missing KBs converted into remediation candidates.",
             ],
@@ -688,32 +688,32 @@ def append_candidate_analysis(
         headers=["Candidate Field", "Value", "Explanation"],
         rows=[
             [
-                "Runtime scans",
+                "Runtime Scans",
                 len(scan_rows),
                 "Loaded Kolektria scans considered by this analysis run.",
             ],
             [
-                "Candidate-bearing scans",
+                "Candidate-Bearing Scans",
                 get_candidate_bearing_scan_count(candidate_rows),
                 "Scans with at least one missing KB available for ranking.",
             ],
             [
-                "Candidate rows",
+                "Candidate Rows",
                 len(candidate_rows),
                 "Missing KB instances ranked by Remetria.",
             ],
             [
-                "Unique candidate KBs",
+                "Unique Candidate KBs",
                 get_candidate_kb_count(candidate_rows),
                 "Distinct KB identifiers across the runtime candidate set.",
             ],
             [
-                "Largest candidate CVE set",
+                "Largest Candidate CVE Set",
                 get_largest_candidate_cve_count(candidate_rows),
                 "Largest number of unique CVEs mapped to one missing KB candidate.",
             ],
             [
-                "Repeated candidate rows",
+                "Repeated Candidate Rows",
                 get_repeated_candidate_count(candidate_rows),
                 "Candidate rows where the missing KB appeared across multiple runtime scans.",
             ],
@@ -736,10 +736,10 @@ def append_cve_enrichment(
 
     add_table(
         lines=lines,
-        headers=["Enrichment Field", "Value", "Explanation"],
+        headers=["Enrichment Field", "Value", "Meaning"],
         rows=[
             [
-                "Unique CVEs observed",
+                "Unique CVEs Observed",
                 len(enrichment_rows),
                 "Distinct CVEs gathered from the runtime scan evidence.",
             ],
@@ -749,7 +749,7 @@ def append_cve_enrichment(
                 "CVE rows with usable enrichment metadata.",
             ],
             [
-                "Missing enrichment rows",
+                "Missing Enrichment Rows",
                 get_missing_enrichment_count(enrichment_rows),
                 "CVE rows not resolved during enrichment.",
             ],
@@ -779,12 +779,12 @@ def append_cve_enrichment(
                 "Resolved CVEs without a usable CVSS severity value.",
             ],
             [
-                "MSRC known exploited",
+                "MSRC Known Exploited",
                 count_truthy(enrichment_rows, "MsrcKnownExploited"),
                 "CVEs marked with known exploitation metadata.",
             ],
             [
-                "MSRC publicly disclosed",
+                "MSRC Publicly Disclosed",
                 count_truthy(enrichment_rows, "MsrcPubliclyDisclosed"),
                 "CVEs marked with public disclosure metadata.",
             ],
@@ -804,7 +804,7 @@ def append_ranking_method(lines: list[str]) -> None:
 
     add_table(
         lines=lines,
-        headers=["Method", "Basis", "Explanation"],
+        headers=["Method", "Basis", "Description"],
         rows=[
             [
                 "CVSS-only",
@@ -893,13 +893,13 @@ def append_ranking_evidence(
             lines=lines,
             headers=[
                 "KB",
-                "CVSS Rank",
-                "MSRC Rank",
+                "CVSS-only Rank",
+                "MSRC-only Rank",
                 "CPRI Rank",
                 "CPRI Score",
                 "Max CVSS",
                 "Max MSRC Severity",
-                "Explanation",
+                "Ranking Note",
             ],
             rows=[
                 [
@@ -910,7 +910,7 @@ def append_ranking_evidence(
                     format_decimal(row.get("CPRIScore")),
                     row.get("MaxCvssBaseScore", ""),
                     row.get("MaxMsrcSeverity", ""),
-                    get_rank_explanation(row),
+                    get_rank_note(row),
                 ]
                 for row in scan_ranking_rows
             ],
@@ -938,55 +938,55 @@ def append_evaluation_metrics(
 
     add_table(
         lines=lines,
-        headers=["Metric", "Value", "Explanation"],
+        headers=["Metric", "Value", "Meaning"],
         rows=[
             [
-                "Candidate count",
+                "Candidate Count",
                 aggregate_row.get("CandidateCount", ""),
                 "Total candidate rows included in ranking comparison.",
             ],
             [
-                "Candidate-bearing scans",
+                "Candidate-Bearing Scans",
                 aggregate_row.get("CandidateBearingScanCount", ""),
                 "Scans with at least one ranked candidate.",
             ],
             [
-                "CPRI/CVSS top-1 match ratio",
+                "CPRI/CVSS Top-Ranked KB Agreement",
                 format_decimal(aggregate_row.get("CVSSTop1MatchRatio")),
-                "Share of scans where CPRI and CVSS-only selected the same top KB.",
+                "Share of scans where CPRI and CVSS-only selected the same top-ranked KB.",
             ],
             [
-                "CPRI/MSRC top-1 match ratio",
+                "CPRI/MSRC Top-Ranked KB Agreement",
                 format_decimal(aggregate_row.get("MSRCTop1MatchRatio")),
-                "Share of scans where CPRI and MSRC-only selected the same top KB.",
+                "Share of scans where CPRI and MSRC-only selected the same top-ranked KB.",
             ],
             [
-                "Average CVSS/CPRI top-N overlap",
+                "Average CVSS/CPRI Top-N Overlap",
                 format_decimal(aggregate_row.get("CVSSCPRITopNOverlapRatio")),
                 "Average upper-rank overlap between CVSS-only and CPRI.",
             ],
             [
-                "Average MSRC/CPRI top-N overlap",
+                "Average MSRC/CPRI Top-N Overlap",
                 format_decimal(aggregate_row.get("MSRCCPRITopNOverlapRatio")),
                 "Average upper-rank overlap between MSRC-only and CPRI.",
             ],
             [
-                "Average absolute movement vs CVSS",
+                "Average Absolute Movement vs CVSS",
                 format_number(aggregate_row.get("AverageAbsoluteCPRIvsCVSSMovement")),
                 "Average rank movement magnitude compared with CVSS-only.",
             ],
             [
-                "Average absolute movement vs MSRC",
+                "Average Absolute Movement vs MSRC",
                 format_number(aggregate_row.get("AverageAbsoluteCPRIvsMSRCMovement")),
                 "Average rank movement magnitude compared with MSRC-only.",
             ],
             [
-                "Maximum absolute movement vs CVSS",
+                "Maximum Absolute Movement vs CVSS",
                 aggregate_row.get("MaxAbsoluteCPRIvsCVSSMovement", ""),
                 "Largest candidate movement compared with CVSS-only.",
             ],
             [
-                "Maximum absolute movement vs MSRC",
+                "Maximum Absolute Movement vs MSRC",
                 aggregate_row.get("MaxAbsoluteCPRIvsMSRCMovement", ""),
                 "Largest candidate movement compared with MSRC-only.",
             ],
@@ -1014,9 +1014,9 @@ def append_evaluation_metrics(
         headers=[
             "Scan",
             "Candidates",
-            "CPRI Top KB",
-            "Matches CVSS Top 1",
-            "Matches MSRC Top 1",
+            "CPRI Top-Ranked KB",
+            "Matches CVSS Top-Ranked KB",
+            "Matches MSRC Top-Ranked KB",
             "Avg Abs Move vs CVSS",
             "Avg Abs Move vs MSRC",
         ],
@@ -1052,8 +1052,8 @@ def append_method(lines: list[str]) -> None:
         lines,
         "Observed CVEs are enriched with advisory and CVSS metadata. The enriched "
         "candidate set is ranked through CVSS-only, MSRC-only and CPRI methods. "
-        "The resulting ranking rows are evaluated through top-1 agreement, top-N "
-        "overlap and absolute rank movement metrics."
+        "The resulting ranking rows are evaluated through top-ranked KB agreement, "
+        "top-N overlap and absolute rank movement metrics."
     )
 
     add_paragraph(

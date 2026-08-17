@@ -136,3 +136,4 @@ def write_csv_outputs(
             rows = []
 
         write_csv_output(csv_paths[filename], rows)
+        

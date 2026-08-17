@@ -99,33 +99,39 @@ def is_inside_any(path: Path, directories: list[Path]) -> bool:
     return False
 
 
-def find_development_artefacts() -> list[Path]:
+def find_development_artefacts(
+    excluded_directories: list[Path],
+) -> list[Path]:
     """Return temporary development artefacts across the project root."""
 
     cache_directories = [
         path
         for path in ROOT_DIR.rglob("__pycache__")
-        if path.is_dir()
+        if path.is_dir() and not is_inside_any(path, excluded_directories)
     ]
 
     bytecode_files = [
         path
         for pattern in ("*.pyc", "*.pyo")
         for path in ROOT_DIR.rglob(pattern)
-        if path.is_file() and not is_inside_any(path, cache_directories)
+        if (
+            path.is_file() and
+            not is_inside_any(path, excluded_directories) and
+            not is_inside_any(path, cache_directories)
+        )
     ]
 
     spec_files = [
         path
         for path in ROOT_DIR.rglob("*.spec")
-        if path.is_file()
+        if path.is_file() and not is_inside_any(path, excluded_directories)
     ]
 
     metadata_files = [
         path
         for pattern in ("Thumbs.db", "desktop.ini")
         for path in ROOT_DIR.rglob(pattern)
-        if path.is_file()
+        if path.is_file() and not is_inside_any(path, excluded_directories)
     ]
 
     return [
@@ -183,9 +189,17 @@ def clear_generated_artefacts() -> ClearArtefactsResult:
             No generated artefacts were selected for removal.
     """
 
-    runtime_item_count = count_directory_items(RUNTIME_DIR)
     analysis_output_folders = find_analysis_output_folders()
-    development_artefacts = find_development_artefacts()
+    excluded_development_paths = [
+        DATA_DIR,
+        DIST_DIR,
+        *analysis_output_folders,
+    ]
+
+    runtime_item_count = count_directory_items(RUNTIME_DIR)
+    development_artefacts = find_development_artefacts(
+        excluded_directories=excluded_development_paths
+    )
 
     analysis_output_count = len(analysis_output_folders)
     development_artefact_count = len(development_artefacts)
@@ -209,8 +223,8 @@ def clear_generated_artefacts() -> ClearArtefactsResult:
 
     print_step("Checking preserved locations")
     print_detail(f"Data folder: {relative_path(DATA_DIR)}")
-    print_detail("Collected archive: data\\collected")
-    print_detail("Dataset snapshots: data\\pre-update, data\\post-update")
+    print_detail("Collected archive: data\\collected, if present")
+    print_detail("Dataset snapshots: data\\pre-update, data\\post-update, if present")
     print_detail(f"Executable output: {relative_path(DIST_DIR)}")
     print_detail("Build scripts: build")
     print_result("Preserved locations confirmed")
