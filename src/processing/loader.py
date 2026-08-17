@@ -143,11 +143,15 @@ def validate_scan_structure(scan_data: dict[str, Any], scan_path: Path) -> None:
 # SCAN RECORDS
 # ------------------------------------------------------------
 
-def build_scan_record(scan_path: Path, scan_data: dict[str, Any]) -> dict[str, Any]:
+def build_scan_record(
+    scan_number: int,
+    scan_path: Path,
+    scan_data: dict[str, Any],
+) -> dict[str, Any]:
     """Build a Remetria scan record from a loaded Kolektria scan."""
 
     return {
-        "ScanId": scan_path.stem,
+        "ScanId": str(scan_number),
         "ScanPath": scan_path,
         "ScanData": scan_data,
     }
@@ -158,12 +162,13 @@ def load_runtime_scans() -> list[dict[str, Any]]:
 
     loaded_scans: list[dict[str, Any]] = []
 
-    for scan_path in discover_runtime_scan_paths():
+    for scan_number, scan_path in enumerate(discover_runtime_scan_paths(), start=1):
         scan_data = load_scan_json(scan_path)
         validate_scan_structure(scan_data, scan_path)
 
         loaded_scans.append(
             build_scan_record(
+                scan_number=scan_number,
                 scan_path=scan_path,
                 scan_data=scan_data,
             )

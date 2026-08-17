@@ -1,7 +1,7 @@
 """
 Remetria analysis workflow.
 
-Provides the main menu and active runtime dataset intake flow.
+Provides the main menu and active runtime dataset analysis flow.
 """
 
 from __future__ import annotations
@@ -32,21 +32,6 @@ from utils.console import (
     prompt_main_menu,
 )
 from utils.paths import ensure_output_directories, ensure_required_directories, relative_path
-
-
-# ------------------------------------------------------------
-# SCAN DISPLAY
-# ------------------------------------------------------------
-
-def print_loaded_scan_details(loaded_scans: list[dict[str, Any]]) -> None:
-    """Print accepted runtime scan records."""
-
-    for scan_record in loaded_scans:
-        scan_id = scan_record["ScanId"]
-        scan_path = scan_record["ScanPath"]
-
-        print_detail(f"Scan ID: {scan_id}")
-        print_detail(f"Source: {relative_path(scan_path)}")
 
 
 # ------------------------------------------------------------
@@ -83,6 +68,7 @@ def build_analysis_result(
         "EvaluationMetricRows": evaluation_metric_rows,
     }
 
+
 def print_export_details(export_result: dict[str, Any]) -> None:
     """Print generated export paths."""
 
@@ -104,75 +90,60 @@ def run_analysis() -> None:
 
     print_action("Run Analysis")
 
-    print_section("Environment Preparation")
+    print_section("Environment")
 
-    print_step("Validating required directories")
+    print_step("Preparing environment")
     ensure_required_directories()
-    print_result("Required directories found")
-
-    print_step("Preparing output directories")
     ensure_output_directories()
-    print_result("Output directories prepared")
+    print_result("Environment ready")
 
     print_section("Runtime Dataset")
 
-    print_step("Loading active runtime scans")
+    print_step("Loading runtime scans")
     loaded_scans = load_runtime_scans()
-    print_result("Runtime scans loaded")
-    print_detail(f"Scans loaded: {len(loaded_scans)}")
+    print_result(f"Scans loaded: {len(loaded_scans)}")
 
-    print_loaded_scan_details(loaded_scans)
+    print_section("Evidence Processing")
 
-    print_section("Evidence Normalisation")
-
-    print_step("Normalising loaded scan evidence")
+    print_step("Normalising scan evidence")
     normalised_result = normalise_loaded_scans(loaded_scans)
-    print_result("Loaded scan evidence normalised")
-    print_detail(f"Scan summary rows: {len(normalised_result['ScanSummaryRows'])}")
-    print_detail(f"CVE rows: {len(normalised_result['CveRows'])}")
+    print_result(f"Scan summary rows: {len(normalised_result['ScanSummaryRows'])}")
+    print_result(f"CVE evidence rows: {len(normalised_result['CveRows'])}")
 
-    print_section("Candidate Build")
-
-    print_step("Building missing KB candidate rows")
+    print_step("Building missing KB candidates")
     kb_candidate_rows = build_kb_candidate_rows(loaded_scans)
-    print_result("Missing KB candidate rows built")
-    print_detail(f"KB candidate rows: {len(kb_candidate_rows)}")
+    print_result(f"Missing KB candidates: {len(kb_candidate_rows)}")
 
-    print_section("Evidence Enrichment")
+    print_section("Enrichment")
 
-    print_step("Enriching CVE metadata from MSRC CVRF evidence")
+    print_step("Enriching CVE metadata")
     enrichment_result = enrich_analysis_rows(
         cve_rows=normalised_result["CveRows"],
         kb_candidate_rows=kb_candidate_rows,
     )
-    print_result("CVE metadata enrichment completed")
-    print_detail(f"CVE enrichment rows: {len(enrichment_result['CveEnrichmentRows'])}")
-    print_detail(
-        "Enriched KB candidate rows: "
+    print_result(f"Unique CVEs enriched: {len(enrichment_result['CveEnrichmentRows'])}")
+    print_result(
+        "Enriched KB candidates: "
         f"{len(enrichment_result['EnrichedKbCandidateRows'])}"
     )
 
-    print_section("Ranking Comparison")
+    print_section("Ranking and Evaluation")
 
-    print_step("Ranking enriched KB candidates")
+    print_step("Ranking candidates")
     ranking_comparison_rows = rank_enriched_kb_candidates(
         enrichment_result["EnrichedKbCandidateRows"]
     )
-    print_result("Ranking comparison completed")
-    print_detail(f"Ranking comparison rows: {len(ranking_comparison_rows)}")
+    print_result(f"Ranking rows: {len(ranking_comparison_rows)}")
 
-    print_section("Ranking Evaluation")
-
-    print_step("Evaluating ranking comparison")
+    print_step("Evaluating rankings")
     evaluation_metric_rows = evaluate_ranking_comparison(
         ranking_comparison_rows
     )
-    print_result("Ranking evaluation completed")
-    print_detail(f"Evaluation metric rows: {len(evaluation_metric_rows)}")
+    print_result(f"Evaluation rows: {len(evaluation_metric_rows)}")
 
-    print_section("Analysis Result")
+    print_section("Output")
 
-    print_step("Building machine-friendly analysis result")
+    print_step("Building analysis result")
     analysis_result = build_analysis_result(
         loaded_scans=loaded_scans,
         normalised_result=normalised_result,
@@ -181,28 +152,21 @@ def run_analysis() -> None:
         ranking_comparison_rows=ranking_comparison_rows,
         evaluation_metric_rows=evaluation_metric_rows,
     )
-    print_result("Machine-friendly analysis result built")
+    print_result("Analysis result built")
 
-    print_section("Runtime Export")
-
-    print_step("Writing Remetria output files")
+    print_step("Writing JSON and CSV outputs")
     export_result = export_analysis_result(analysis_result)
-    print_result("Remetria output files written")
+    print_result("JSON and CSV outputs written")
     print_export_details(export_result)
 
-    print_section("Markdown Report")
-
-    print_step("Writing Remetria Markdown report")
+    print_step("Writing Markdown report")
     report_path = write_markdown_report(analysis_result)
     print_result("Markdown report written")
     print_detail(f"Report: {relative_path(report_path)}")
 
     print_section("Analysis Status")
 
-    print_info("Remetria analytical workflow completed")
-    print_info("Next step: inspect report output, then freeze pre-update results")
-
-    print_success("Run Analysis completed")
+    print_success("Remetria workflow completed")
 
 
 # ------------------------------------------------------------
