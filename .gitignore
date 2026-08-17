@@ -8,9 +8,12 @@ __pycache__/
 
 
 # ------------------------------------------------------------
-# ACTIVE ANALYSIS INPUT
+# LOCAL DATA
 # ------------------------------------------------------------
 
+data/*
+!data/.gitkeep
+!data/runtime/
 data/runtime/*
 !data/runtime/.gitkeep
 
@@ -18,6 +21,12 @@ data/runtime/*
 # ------------------------------------------------------------
 # GENERATED ANALYSIS OUTPUT
 # ------------------------------------------------------------
+
+results/*
+!results/.gitkeep
+!results/json/
+!results/reports/
+!results/tables/
 
 results/json/*
 !results/json/.gitkeep
