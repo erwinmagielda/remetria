@@ -1114,7 +1114,7 @@ def build_markdown_report(analysis_result: dict[str, Any]) -> str:
         "Remetria is a Windows patch-remediation analysis tool. It consumes "
         "Kolektria scan evidence, enriches observed CVEs with advisory and CVSS "
         "metadata, ranks missing KB candidates using CVSS-only, MSRC-only and "
-        "CPRI methods, and exports comparison evidence for dissertation evaluation."
+        "CPRI methods, and exports comparison evidence for ranking evaluation."
     )
 
     append_analysis_outcome(
