@@ -11,11 +11,13 @@ from typing import Any
 
 from processing.builder import build_kb_candidate_rows
 from processing.enricher import enrich_analysis_rows
+from processing.evaluator import evaluate_ranking_comparison
 from processing.loader import load_runtime_scans
 from processing.normaliser import normalise_loaded_scans
 from processing.ranker import rank_enriched_kb_candidates
 from remetria.cleaner import clear_generated_artefacts
 from remetria.exporter import export_analysis_result
+from remetria.reporter import write_markdown_report
 from utils.console import (
     print_action,
     print_banner,
@@ -57,6 +59,7 @@ def build_analysis_result(
     kb_candidate_rows: list[dict[str, Any]],
     enrichment_result: dict[str, list[dict[str, Any]]],
     ranking_comparison_rows: list[dict[str, Any]],
+    evaluation_metric_rows: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Build the current Remetria machine-friendly analysis result."""
 
@@ -67,7 +70,7 @@ def build_analysis_result(
 
     return {
         "Tool": "Remetria",
-        "ResultType": "RuntimeRankingBuild",
+        "ResultType": "RuntimeEvaluationBuild",
         "GeneratedUtc": datetime.now(timezone.utc).isoformat(),
         "RuntimeScanCount": len(loaded_scans),
         "ScanIds": scan_ids,
@@ -77,6 +80,7 @@ def build_analysis_result(
         "CveEnrichmentRows": enrichment_result["CveEnrichmentRows"],
         "EnrichedKbCandidateRows": enrichment_result["EnrichedKbCandidateRows"],
         "RankingComparisonRows": ranking_comparison_rows,
+        "EvaluationMetricRows": evaluation_metric_rows,
     }
 
 def print_export_details(export_result: dict[str, Any]) -> None:
@@ -157,6 +161,15 @@ def run_analysis() -> None:
     print_result("Ranking comparison completed")
     print_detail(f"Ranking comparison rows: {len(ranking_comparison_rows)}")
 
+    print_section("Ranking Evaluation")
+
+    print_step("Evaluating ranking comparison")
+    evaluation_metric_rows = evaluate_ranking_comparison(
+        ranking_comparison_rows
+    )
+    print_result("Ranking evaluation completed")
+    print_detail(f"Evaluation metric rows: {len(evaluation_metric_rows)}")
+
     print_section("Analysis Result")
 
     print_step("Building machine-friendly analysis result")
@@ -166,6 +179,7 @@ def run_analysis() -> None:
         kb_candidate_rows=kb_candidate_rows,
         enrichment_result=enrichment_result,
         ranking_comparison_rows=ranking_comparison_rows,
+        evaluation_metric_rows=evaluation_metric_rows,
     )
     print_result("Machine-friendly analysis result built")
 
@@ -176,10 +190,17 @@ def run_analysis() -> None:
     print_result("Remetria output files written")
     print_export_details(export_result)
 
+    print_section("Markdown Report")
+
+    print_step("Writing Remetria Markdown report")
+    report_path = write_markdown_report(analysis_result)
+    print_result("Markdown report written")
+    print_detail(f"Report: {relative_path(report_path)}")
+
     print_section("Analysis Status")
 
-    print_info("Ranking comparison completed")
-    print_info("Next step: build processing/evaluator.py")
+    print_info("Remetria analytical workflow completed")
+    print_info("Next step: inspect report output, then freeze pre-update results")
 
     print_success("Run Analysis completed")
 

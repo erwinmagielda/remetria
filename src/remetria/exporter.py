@@ -26,6 +26,7 @@ KB_CANDIDATES_TABLE_PATH = TABLES_DIR / "kb_candidates.csv"
 CVE_ENRICHMENT_TABLE_PATH = TABLES_DIR / "cve_enrichment.csv"
 ENRICHED_KB_CANDIDATES_TABLE_PATH = TABLES_DIR / "kb_candidates_enriched.csv"
 RANKING_COMPARISON_TABLE_PATH = TABLES_DIR / "ranking_comparison.csv"
+EVALUATION_METRICS_TABLE_PATH = TABLES_DIR / "evaluation_metrics.csv"
 
 
 # ------------------------------------------------------------
@@ -144,6 +145,10 @@ def write_csv_outputs(analysis_result: dict[str, Any]) -> dict[str, Path]:
         path=RANKING_COMPARISON_TABLE_PATH,
         rows=analysis_result["RankingComparisonRows"],
     )
+    evaluation_metrics_path = write_csv_table(
+        path=EVALUATION_METRICS_TABLE_PATH,
+        rows=analysis_result["EvaluationMetricRows"],
+    )
 
     return {
         "ScanSummary": scan_summary_path,
@@ -152,6 +157,7 @@ def write_csv_outputs(analysis_result: dict[str, Any]) -> dict[str, Path]:
         "CveEnrichment": cve_enrichment_path,
         "EnrichedKbCandidates": enriched_kb_candidates_path,
         "RankingComparison": ranking_comparison_path,
+        "EvaluationMetrics": evaluation_metrics_path,
     }
 
 
