@@ -157,33 +157,33 @@ def run_analysis() -> None:
     print_step("Validating analyser workspace")
     ensure_required_directories()
     ensure_results_directory()
+    print_result("Analysis workspace prepared")
     print_detail("Source path: src")
     print_detail(f"Runtime input: {relative_path(RUNTIME_DIR)}")
     print_detail(f"Output root: {relative_path(export_context['OutputRoot'])}")
     print_detail(f"Run ID: {run_id}")
-    print_result("Analysis workspace prepared")
 
     print_section("Runtime Input")
     print_step("Loading Kolektria scan evidence")
     loaded_scans = load_runtime_scans()
+    print_result("Runtime scans loaded")
     print_detail(f"Source folder: {relative_path(RUNTIME_DIR)}")
     print_detail(f"Scan files loaded: {len(loaded_scans)}")
-    print_result("Runtime scans loaded")
 
     print_section("Evidence Normalisation")
     print_step("Normalising scan and CVE rows")
     normalised_result = normalise_loaded_scans(loaded_scans)
+    print_result("Evidence rows normalised")
     print_detail(f"Scan summary rows: {len(normalised_result['ScanSummaryRows'])}")
     print_detail(f"CVE evidence rows: {len(normalised_result['CveRows'])}")
-    print_result("Evidence rows normalised")
 
     print_section("Candidate Analysis")
     print_step("Building missing KB candidates")
     kb_candidate_rows = build_kb_candidate_rows(loaded_scans)
     candidate_bearing_scan_count = count_candidate_bearing_scans(kb_candidate_rows)
+    print_result("Candidate set built")
     print_detail(f"Candidate-bearing scans: {candidate_bearing_scan_count}")
     print_detail(f"Missing KB candidates: {len(kb_candidate_rows)}")
-    print_result("Candidate set built")
 
     print_section("CVE Enrichment")
     print_step("Resolving CVE metadata")
@@ -194,18 +194,18 @@ def run_analysis() -> None:
     missing_enrichment_rows = count_missing_enrichment_rows(
         enrichment_result["CveEnrichmentRows"]
     )
+    print_result("CVE metadata resolved")
     print_detail(f"Unique CVEs enriched: {len(enrichment_result['CveEnrichmentRows'])}")
     print_detail(f"Missing enrichment rows: {missing_enrichment_rows}")
-    print_result("CVE metadata resolved")
 
     print_section("Ranking Comparison")
     print_step("Comparing CVSS, MSRC and CPRI rankings")
     ranking_comparison_rows = rank_enriched_kb_candidates(
         enrichment_result["EnrichedKbCandidateRows"]
     )
+    print_result("Ranking comparison completed")
     print_detail(f"Ranking rows: {len(ranking_comparison_rows)}")
     print_detail(f"Candidate-bearing scans: {candidate_bearing_scan_count}")
-    print_result("Ranking comparison completed")
 
     print_section("Evaluation Metrics")
     print_step("Calculating ranking metrics")
@@ -213,6 +213,7 @@ def run_analysis() -> None:
         ranking_comparison_rows
     )
     aggregate_row = find_aggregate_evaluation_row(evaluation_metric_rows)
+    print_result("Evaluation metrics calculated")
     print_detail(f"Evaluation rows: {len(evaluation_metric_rows)}")
     print_detail(
         "CPRI/CVSS Top-Ranked KB Agreement: "
@@ -222,7 +223,6 @@ def run_analysis() -> None:
         "CPRI/MSRC Top-Ranked KB Agreement: "
         f"{format_ratio(aggregate_row.get('MSRCTop1MatchRatio'))}"
     )
-    print_result("Evaluation metrics calculated")
 
     print_section("Runtime Export")
     ensure_export_directories(export_context)
@@ -243,8 +243,8 @@ def run_analysis() -> None:
         path=export_context["JsonPath"],
         analysis_result=analysis_result,
     )
-    print_detail(f"JSON: {relative_path(export_context['JsonPath'])}")
     print_result("Analysis JSON written")
+    print_detail(f"JSON: {relative_path(export_context['JsonPath'])}")
 
     print()
 
@@ -253,8 +253,8 @@ def run_analysis() -> None:
         csv_paths=export_context["CsvPaths"],
         analysis_result=analysis_result,
     )
-    print_detail(f"Tables: {relative_path(export_context['TablesDir'])}")
     print_result("CSV tables written")
+    print_detail(f"Tables: {relative_path(export_context['TablesDir'])}")
 
     print()
 
@@ -263,8 +263,8 @@ def run_analysis() -> None:
         analysis_result=analysis_result,
         report_path=export_context["ReportPath"],
     )
-    print_detail(f"Markdown report: {relative_path(export_context['ReportPath'])}")
     print_result("Markdown report written")
+    print_detail(f"Markdown report: {relative_path(export_context['ReportPath'])}")
 
     print()
     print_success("Run Analysis completed")
