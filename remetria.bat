@@ -10,12 +10,10 @@ REM Runs the analyser executable by default.
 REM Falls back to Python source mode when the executable is unavailable.
 REM
 REM Input:
-REM     data\runtime         - active analysis workset
+REM     data\runtime
 REM
 REM Output:
-REM     results\json         - generated JSON analysis output
-REM     results\reports      - generated Markdown report
-REM     results\tables       - generated CSV tables
+REM     results\analysis_YYYYMMDD_HHMMSS
 REM ------------------------------------------------------------
 
 cd /d "%~dp0"
@@ -26,10 +24,7 @@ set "PYTHONPATH=%CD%\src"
 set "SOURCE_FILE=src\remetria\analyser.py"
 
 set "RUNTIME_DIR=data\runtime"
-
-set "JSON_DIR=results\json"
-set "REPORTS_DIR=results\reports"
-set "TABLES_DIR=results\tables"
+set "RESULTS_DIR=results"
 
 REM ------------------------------------------------------------
 REM PAUSE HELPER
@@ -69,16 +64,8 @@ if not exist "%RUNTIME_DIR%" (
     mkdir "%RUNTIME_DIR%" >nul 2>&1
 )
 
-if not exist "%JSON_DIR%" (
-    mkdir "%JSON_DIR%" >nul 2>&1
-)
-
-if not exist "%REPORTS_DIR%" (
-    mkdir "%REPORTS_DIR%" >nul 2>&1
-)
-
-if not exist "%TABLES_DIR%" (
-    mkdir "%TABLES_DIR%" >nul 2>&1
+if not exist "%RESULTS_DIR%" (
+    mkdir "%RESULTS_DIR%" >nul 2>&1
 )
 
 REM ------------------------------------------------------------
@@ -96,7 +83,7 @@ if exist "%EXE_PATH%" (
         exit /b 1
     )
 
-    call :wait_to_close
+    goto wait_to_close
 )
 
 where python.exe >nul 2>&1
@@ -121,7 +108,7 @@ if not exist "%SOURCE_FILE%" (
     exit /b 1
 )
 
-python -m "%PY_MODULE%"
+python -m %PY_MODULE%
 
 if %errorlevel% neq 0 (
     echo.
@@ -131,4 +118,4 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-call :wait_to_close
+goto wait_to_close
