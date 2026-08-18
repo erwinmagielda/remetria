@@ -2,7 +2,7 @@
 Remetria ranking evaluator.
 
 Summarises the ranking comparison produced by ranker.py into per-scan and
-aggregate evaluation metrics for dissertation analysis.
+aggregate evaluation metrics for ranking analysis.
 """
 
 from __future__ import annotations

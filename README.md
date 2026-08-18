@@ -1,6 +1,6 @@
 # Remetria
 
-Remetria is a Windows patch-remediation analysis tool. It consumes Kolektria scan JSON evidence, enriches observed CVEs with advisory and CVSS metadata, ranks missing KB candidates using CVSS-only, MSRC-only and CPRI methods, and exports comparison evidence for ranking evaluation.
+Remetria is a Windows patch-remediation analysis tool. It consumes Kolektria scan JSON evidence, enriches observed CVEs with advisory and CVSS metadata, ranks missing KB candidates using CVSS, MSRC and CPRI methods, and exports comparison evidence for ranking evaluation.
 
 CPRI means Contextual Patch Remediation Index.
 
@@ -10,8 +10,8 @@ Remetria supports repeatable comparison of three Windows update prioritisation m
 
 | Method | Purpose |
 |:---|:---|
-| CVSS-only | Ranks missing KB candidates using CVSS-derived severity evidence. |
-| MSRC-only | Ranks missing KB candidates using Microsoft advisory severity and exploit/disclosure evidence. |
+| CVSS | Ranks missing KB candidates using CVSS-derived severity evidence. |
+| MSRC | Ranks missing KB candidates using Microsoft advisory severity and exploit/disclosure evidence. |
 | CPRI | Ranks missing KB candidates using enriched vulnerability evidence and local remediation context. |
 
 ## Workflow
@@ -25,6 +25,13 @@ data\runtime
 Run Remetria:
 
 ```powershell
+.\remetria.bat
+```
+
+Or run from source:
+
+```powershell
+$env:PYTHONPATH="$PWD\src"
 python -m remetria.analyser
 ```
 
@@ -76,4 +83,4 @@ This clears runtime input files, generated analysis folders and temporary develo
 
 Remetria performs analysis and reporting. It does not install patches, run exploit tests, scan unauthorised systems or perform production remediation.
 
-CVSS-only and MSRC-only are comparison baselines. CPRI is the context-aware ranking method used by this workflow.
+CVSS and MSRC are comparison baselines. CPRI is the context-aware ranking method used by this workflow.

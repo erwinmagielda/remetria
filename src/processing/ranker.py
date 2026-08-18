@@ -188,7 +188,7 @@ def calculate_cvss_score(
     normalisation_context: dict[str, float],
 ) -> float:
     """
-    Calculate the CVSS-only baseline score.
+    Calculate the CVSS baseline score.
 
     The score uses only CVSS-derived fields already aggregated into the KB
     candidate row.
@@ -218,7 +218,7 @@ def calculate_cvss_score(
 
 def calculate_msrc_score(candidate_row: dict[str, Any]) -> float:
     """
-    Calculate the MSRC-only baseline score.
+    Calculate the MSRC baseline score.
 
     The score uses Microsoft advisory-derived fields already aggregated into
     the KB candidate row.
@@ -476,7 +476,7 @@ def group_rows_by_scan_id(rows: list[dict[str, Any]]) -> dict[str, list[dict[str
 
 
 def sort_for_cvss_rank(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Sort rows for CVSS-only ranking."""
+    """Sort rows for CVSS ranking."""
 
     return sorted(
         rows,
@@ -491,7 +491,7 @@ def sort_for_cvss_rank(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def sort_for_msrc_rank(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Sort rows for MSRC-only ranking."""
+    """Sort rows for MSRC ranking."""
 
     return sorted(
         rows,
