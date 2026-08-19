@@ -9,13 +9,31 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
 
 
 # ------------------------------------------------------------
 # ROOT PATHS
 # ------------------------------------------------------------
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
+def get_root_dir() -> Path:
+    """
+    Return the Remetria project root directory.
+
+    Source mode:
+        src/remetria/analyser.py
+
+    Executable mode:
+        dist/remetria.exe
+    """
+
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parents[1]
+
+    return Path(__file__).resolve().parents[2]
+
+
+ROOT_DIR = get_root_dir()
 SRC_DIR = ROOT_DIR / "src"
 
 DATA_DIR = ROOT_DIR / "data"
