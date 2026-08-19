@@ -48,11 +48,11 @@ REQUIRED_TOP_LEVEL_TYPES = {
 
 def discover_runtime_scan_paths() -> list[Path]:
     """
-    Return direct JSON scan files from the active runtime dataset.
+    Return direct Kolektria scan files from the active runtime dataset.
 
-    Remetria intentionally reads only data/runtime/*.json.
-    Subfolders are ignored so the runtime directory represents one selected
-    working dataset.
+    Remetria reads direct files from data/runtime. JSON files and extensionless
+    scan files are accepted so exported Kolektria evidence can be staged with
+    stable host labels.
     """
 
     if not RUNTIME_DIR.exists():
@@ -63,12 +63,14 @@ def discover_runtime_scan_paths() -> list[Path]:
 
     scan_paths = sorted(
         path
-        for path in RUNTIME_DIR.glob("*.json")
+        for path in RUNTIME_DIR.iterdir()
         if path.is_file()
+        and path.name != ".gitkeep"
+        and path.suffix.lower() in ["", ".json"]
     )
 
     if not scan_paths:
-        raise RuntimeError(f"No runtime scan JSON files found in {relative_path(RUNTIME_DIR)}")
+        raise RuntimeError(f"No runtime scan files found in {relative_path(RUNTIME_DIR)}")
 
     return scan_paths
 
